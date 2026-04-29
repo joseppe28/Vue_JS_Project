@@ -75,16 +75,24 @@
       <!-- Gegner werden hier angezeigt -->
     </div>
 
-    <button class="add-btn">+</button>
+    <button class="add-btn" @click="openAddEnemy">+</button>
+
+    <transition name="fade">
+      <AddEnemyView v-if="showAddEnemy" @save-enemy="handleSaveEnemy" />
+    </transition>
   </div>
 </template>
 
 <script>
+import AddEnemyView from './AddEnemyView.vue'
+
 export default {
   name: 'GegnerView',
+  components: { AddEnemyView },
   data() {
     return {
       showFilter: false,
+      showAddEnemy: false,
       attributes: [
         { code: 'MU', name: 'Mut' },
         { code: 'KL', name: 'Klugheit' },
@@ -114,6 +122,14 @@ export default {
   methods: {
     toggleFilter() {
       this.showFilter = !this.showFilter;
+    },
+    openAddEnemy() {
+      this.showAddEnemy = true;
+    },
+    handleSaveEnemy(enemy) {
+      // Schließe das Formular und gib das neue Gegner-Objekt weiter
+      this.showAddEnemy = false;
+      this.$emit('enemy-added', enemy);
     },
     resetFilters() {
       this.filters.attributes = {
