@@ -13,11 +13,11 @@
 
     <div class="content-section">
       <div class="info-grid">
-        <div class="info-card">
+        <router-link to="/gegner" class="info-card">
           <div class="card-icon">📜</div>
           <h3>Gegner</h3>
           <p>Alle Gegner auf einen Blick.</p>
-        </div>
+        </router-link>
         <div class="info-card">
           <div class="card-icon">✨</div>
           <h3>Kampf</h3>
