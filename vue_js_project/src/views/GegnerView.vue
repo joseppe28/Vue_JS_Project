@@ -41,28 +41,138 @@
           </div>
         </div>
 
-        <div class="filter-section">
-          <h3>Creature Type</h3>
-          <select v-model="filters.creatureType" class="filter-select">
-            <option value="">-- Alle --</option>
-            <option value="Humanoid">Humanoid</option>
-            <option value="Beast">Beast</option>
-            <option value="Undead">Undead</option>
-            <option value="Elemental">Elemental</option>
-            <option value="Dragon">Dragon</option>
-          </select>
-        </div>
+        <div class="filter-selects">
+          <div class="filter-section">
+            <h3>Creature Type</h3>
+            <div class="filter-with-chips">
+              <div class="dropdown-container">
+                <button @click="toggleDropdown('creatureType')" class="dropdown-btn">
+                  Auswählen ▼
+                </button>
+                <div v-if="openDropdown === 'creatureType'" class="dropdown-menu">
+                  <div
+                    @click="toggleSelectAll('creatureType')"
+                    class="dropdown-item"
+                    :class="{ 'dropdown-item-selected': filters.creatureType.length === creatureTypes.length && creatureTypes.length > 0 }"
+                  >
+                    -- Alle --
+                  </div>
+                  <div
+                    v-for="type in creatureTypes"
+                    :key="type"
+                    @click="toggleSelection('creatureType', type)"
+                    class="dropdown-item"
+                    :class="{ 'dropdown-item-selected': filters.creatureType.includes(type) }"
+                  >
+                    {{ type }}
+                  </div>
+                </div>
+              </div>
+              <div class="chips-container">
+                <div
+                  v-for="type in filters.creatureType"
+                  :key="type"
+                  class="filter-chip"
+                >
+                  {{ type }}
+                  <button
+                    @click="toggleSelection('creatureType', type)"
+                    class="chip-remove"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 
-        <div class="filter-section">
-          <h3>Challenge Rating</h3>
-          <select v-model="filters.challengeRating" class="filter-select">
-            <option value="">-- Alle --</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-          </select>
+          <div class="filter-section">
+            <h3>Challenge Rating</h3>
+            <div class="filter-with-chips">
+              <div class="dropdown-container">
+                <button @click="toggleDropdown('challengeRating')" class="dropdown-btn">
+                  Auswählen ▼
+                </button>
+                <div v-if="openDropdown === 'challengeRating'" class="dropdown-menu">
+                  <div
+                    @click="toggleSelectAll('challengeRating')"
+                    class="dropdown-item"
+                    :class="{ 'dropdown-item-selected': filters.challengeRating.length === challengeRatings.length && challengeRatings.length > 0 }"
+                  >
+                    -- Alle --
+                  </div>
+                  <div
+                    v-for="rating in challengeRatings"
+                    :key="rating"
+                    @click="toggleSelection('challengeRating', rating)"
+                    class="dropdown-item"
+                    :class="{ 'dropdown-item-selected': filters.challengeRating.includes(rating) }"
+                  >
+                    {{ rating }}
+                  </div>
+                </div>
+              </div>
+              <div class="chips-container">
+                <div
+                  v-for="rating in filters.challengeRating"
+                  :key="rating"
+                  class="filter-chip"
+                >
+                  {{ rating }}
+                  <button
+                    @click="toggleSelection('challengeRating', rating)"
+                    class="chip-remove"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <h3>Waffentyp</h3>
+            <div class="filter-with-chips">
+              <div class="dropdown-container">
+                <button @click="toggleDropdown('weaponType')" class="dropdown-btn">
+                  Auswählen ▼
+                </button>
+                <div v-if="openDropdown === 'weaponType'" class="dropdown-menu">
+                  <div
+                    @click="toggleSelectAll('weaponType')"
+                    class="dropdown-item"
+                    :class="{ 'dropdown-item-selected': filters.weaponType.length === weaponTypes.length && weaponTypes.length > 0 }"
+                  >
+                    -- Alle --
+                  </div>
+                  <div
+                    v-for="weapon in weaponTypes"
+                    :key="weapon"
+                    @click="toggleSelection('weaponType', weapon)"
+                    class="dropdown-item"
+                    :class="{ 'dropdown-item-selected': filters.weaponType.includes(weapon) }"
+                  >
+                    {{ weapon }}
+                  </div>
+                </div>
+              </div>
+              <div class="chips-container">
+                <div
+                  v-for="weapon in filters.weaponType"
+                  :key="weapon"
+                  class="filter-chip"
+                >
+                  {{ weapon }}
+                  <button
+                    @click="toggleSelection('weaponType', weapon)"
+                    class="chip-remove"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="filter-actions">
@@ -93,6 +203,21 @@ export default {
     return {
       showFilter: false,
       showAddEnemy: false,
+      openDropdown: null,
+      creatureTypes: [
+        'Automaten', 'Chimären', 'Daimonide', 'Drachen', 'Dämonen',
+        'Elementare', 'Feen und Feenartige', 'Geister', 'Golemiden',
+        'Golems', 'Homunculi', 'Kulturschaffende', 'Pflanzen', 'Tiere',
+        'Untote', 'Übernatürliche Wesen'
+      ],
+      challengeRatings: ['1', '2', '3', '4', '5'],
+      weaponTypes: [
+        'Armbrüste', 'Blasrohre', 'Bögen', 'Diskusse', 'Dolche',
+        'Fechtwaffen', 'Feuerspeien', 'Fächer', 'Hiebwaffen', 'Holzwaffen',
+        'Kettenwaffen', 'Lanzen', 'Peitschen', 'Raufen', 'Schilde',
+        'Schleudern', 'Schwerter', 'Spießwaffen', 'Stangenwaffen',
+        'Wurfwaffen', 'Zweihandhiebwaffen', 'Zweihandschwerter'
+      ],
       attributes: [
         { code: 'MU', name: 'Mut' },
         { code: 'KL', name: 'Klugheit' },
@@ -114,12 +239,45 @@ export default {
           KO: null,
           KK: null
         },
-        creatureType: '',
-        challengeRating: ''
+        creatureType: [],
+        challengeRating: [],
+        weaponType: []
       }
     };
   },
   methods: {
+    toggleDropdown(dropdownName) {
+      if (this.openDropdown === dropdownName) {
+        this.openDropdown = null;
+      } else {
+        this.openDropdown = dropdownName;
+      }
+    },
+    toggleSelection(filterType, item) {
+      const filterArray = this.filters[filterType];
+      const index = filterArray.indexOf(item);
+      if (index > -1) {
+        filterArray.splice(index, 1);
+      } else {
+        filterArray.push(item);
+      }
+    },
+    toggleSelectAll(filterType) {
+      const dataKey = filterType === 'creatureType' ? 'creatureTypes' :
+                      filterType === 'challengeRating' ? 'challengeRatings' :
+                      'weaponTypes';
+      const allItems = this[dataKey];
+      const filterArray = this.filters[filterType];
+      
+      if (filterArray.length === allItems.length) {
+        // Alle sind ausgewählt, also alles deselektieren
+        filterArray.length = 0;
+      } else {
+        // Alles auswählen
+        filterArray.length = 0;
+        filterArray.push(...allItems);
+      }
+    },
     toggleFilter() {
       this.showFilter = !this.showFilter;
     },
@@ -142,8 +300,9 @@ export default {
         KO: null,
         KK: null
       };
-      this.filters.creatureType = '';
-      this.filters.challengeRating = '';
+      this.filters.creatureType = [];
+      this.filters.challengeRating = [];
+      this.filters.weaponType = [];
     }
   }
 };
@@ -262,10 +421,109 @@ h1 {
   box-shadow: 0 4px 15px rgba(201, 169, 97, 0.2);
 }
 
+.filter-row {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.filter-selects {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.filter-with-chips {
+  display: flex;
+  gap: 15px;
+  align-items: flex-start;
+}
+
+.dropdown-container {
+  position: relative;
+  min-width: 180px;
+}
+
+.dropdown-btn {
+  width: 100%;
+  padding: 10px 15px;
+  background-color: #1a1a1a;
+  border: 2px solid #8b7355;
+  border-radius: 4px;
+  color: #e8dcc4;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 0.9rem;
+}
+
+.dropdown-btn:hover {
+  border-color: #c9a961;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: #2d2d2d;
+  border: 2px solid #c9a961;
+  border-radius: 4px;
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 10;
+  margin-top: 5px;
+  box-shadow: 0 4px 12px rgba(201, 169, 97, 0.3);
+}
+
+.dropdown-item {
+  padding: 10px 15px;
+  color: #e8dcc4;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background-color: #8b7355;
+  color: #1a1a1a;
+  padding-left: 20px;
+}
+
+.dropdown-item-selected {
+  background-color: #c9a961;
+  color: #1a1a1a;
+  font-weight: bold;
+}
+
+.dropdown-item-selected:hover {
+  background-color: #d4b97a;
+  color: #1a1a1a;
+}
+
+.chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: flex-start;
+  min-height: 40px;
+}
+
 .filter-section {
   margin-bottom: 25px;
   padding-bottom: 20px;
   border-bottom: 1px solid #8b7355;
+}
+
+.filter-row .filter-section {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .filter-section:last-child {
@@ -369,6 +627,70 @@ h1 {
 .reset-btn:hover {
   background-color: #c9a961;
   color: #1a1a1a;
+}
+
+.selected-filters {
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid #8b7355;
+}
+
+.selected-filters h3 {
+  color: #c9a961;
+  font-size: 1.1rem;
+  margin: 0 0 15px 0;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #8b7355;
+  border: 1px solid #c9a961;
+  border-radius: 20px;
+  color: #e8dcc4;
+  font-size: 0.9rem;
+  animation: slideIn 0.3s ease;
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  color: #e8dcc4;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.chip-remove:hover {
+  color: #c9a961;
+  transform: scale(1.2);
+}
+
+.no-selection {
+  color: #8b7355;
+  font-style: italic;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* Transition für Filter Panel */
