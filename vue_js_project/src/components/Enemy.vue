@@ -158,6 +158,12 @@ export default {
 				['GE', 'Gewandtheit'],
 				['KO', 'Konstitution'],
 				['KK', 'Körperkraft'],
+				['LE', 'Lebensenergie'],
+				['ASP', 'Astralenergie'],
+				['KAP', 'Karmaenergie'],
+				['GS', 'Geschwindigkeit'],
+				['INI', 'Initiative'],
+				['AW', 'Ausweichen'],
 			];
 
 			const source = this.normalizedEnemy.attributes || this.normalizedEnemy.eigenschaften || {};
