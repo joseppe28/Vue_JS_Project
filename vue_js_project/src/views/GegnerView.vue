@@ -33,7 +33,7 @@
                   type="number"
                   v-model.number="filters.attributes[attr.code]"
                   min="0"
-                  max="20"
+                  max="100"
                   class="filter-input"
                 >
               </div>
