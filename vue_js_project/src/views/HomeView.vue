@@ -25,8 +25,8 @@
         </div>
         <div class="info-card">
           <div class="card-icon">⚔️</div>
-          <h3>Sonderfertigkeiten</h3>
-          <p>Entdecke alle verfügbaren Sonderfertigkeiten und Kampfmöglichkeiten.</p>
+          <h3>Waffen</h3>
+          <p>Entdecke alle verfügbaren Waffen.</p>
         </div>
       </div>
     </div>
