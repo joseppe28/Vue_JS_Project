@@ -182,7 +182,44 @@
     </transition>
 
     <div class="content">
-      <!-- Gegner werden hier angezeigt -->
+      <div v-if="isLoading" class="muted">Lade Gegner...</div>
+      <div v-else-if="loadError" class="muted">{{ loadError }}</div>
+      <div v-else-if="!enemies.length" class="muted">Keine Gegner gefunden.</div>
+
+      <div v-else class="enemy-grid">
+        <article v-for="enemy in enemies" :key="enemy.id" class="enemy-card">
+          <header class="enemy-card__head">
+            <div>
+              <strong class="enemy-card__name">{{ enemy.name }}</strong>
+              <div class="muted small">{{ enemy.creature_type || 'Unbekannter Typ' }}</div>
+            </div>
+            <div class="enemy-card__chip">CR {{ enemy.challenge_rating || 'n/a' }}</div>
+          </header>
+
+          <div class="enemy-card__stats">
+            <div class="stat">
+              <span class="stat__label">LE</span>
+              <strong>{{ getAttributeValue(enemy, 'LE') }}</strong>
+            </div>
+            <div class="stat">
+              <span class="stat__label">INI</span>
+              <strong>{{ getAttributeValue(enemy, 'INI') }}</strong>
+            </div>
+            <div class="stat">
+              <span class="stat__label">AW</span>
+              <strong>{{ getAttributeValue(enemy, 'AW') }}</strong>
+            </div>
+            <div class="stat">
+              <span class="stat__label">MU</span>
+              <strong>{{ getAttributeValue(enemy, 'MU') }}</strong>
+            </div>
+            <div class="stat">
+              <span class="stat__label">KL</span>
+              <strong>{{ getAttributeValue(enemy, 'KL') }}</strong>
+            </div>
+          </div>
+        </article>
+      </div>
     </div>
 
     <button class="add-btn" @click="openAddEnemy">+</button>
@@ -203,6 +240,11 @@ export default {
     return {
       showFilter: false,
       showAddEnemy: false,
+      supabaseUrl: 'https://dhomjjfeyoeynhunrnbs.supabase.co',
+      supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRob21qamZleW9leW5odW5ybmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MjYwOTIsImV4cCI6MjA5NDIwMjA5Mn0.PaWu0BDYsWL2D4H4U6NoHHwwx2o9tAGt-1L4w2GdK64',
+      enemies: [],
+      isLoading: false,
+      loadError: '',
       openDropdown: null,
       creatureTypes: [
         'Automaten', 'Chimären', 'Daimonide', 'Drachen', 'Dämonen',
@@ -226,7 +268,13 @@ export default {
         { code: 'FF', name: 'Fingerfertigkeit' },
         { code: 'GE', name: 'Gewandtheit' },
         { code: 'KO', name: 'Konstitution' },
-        { code: 'KK', name: 'Körperkraft' }
+        { code: 'KK', name: 'Körperkraft' },
+        { code: 'LE', name: 'Lebensenergie' },
+        { code: 'ASP', name: 'Astralenergie' },
+        { code: 'KAP', name: 'Karmaenergie' },
+        { code: 'GS', name: 'Geschwindigkeit' },
+        { code: 'INI', name: 'Initiative' },
+        { code: 'AW', name: 'Ausweichen' }
       ],
       filters: {
         attributes: {
@@ -237,7 +285,13 @@ export default {
           FF: null,
           GE: null,
           KO: null,
-          KK: null
+          KK: null,
+          LE: null,
+          ASP: null,
+          KAP: null,
+          GS: null,
+          INI: null,
+          AW: null
         },
         creatureType: [],
         challengeRating: [],
@@ -284,10 +338,121 @@ export default {
     openAddEnemy() {
       this.showAddEnemy = true;
     },
-    handleSaveEnemy(enemy) {
-      // Schließe das Formular und gib das neue Gegner-Objekt weiter
+    async handleSaveEnemy(enemy) {
       this.showAddEnemy = false;
-      this.$emit('enemy-added', enemy);
+
+      try {
+        await this.saveEnemyToSupabase(enemy);
+        await this.fetchEnemies();
+        this.$emit('enemy-added', enemy);
+      } catch (error) {
+        console.error('Supabase save failed:', error);
+        const message = error?.message || 'Unbekannter Fehler';
+        alert(`Speichern fehlgeschlagen: ${message}`);
+      }
+    },
+    async saveEnemyToSupabase(enemy) {
+      const headers = {
+        apikey: this.supabaseAnonKey,
+        Authorization: `Bearer ${this.supabaseAnonKey}`,
+        'Content-Type': 'application/json',
+      };
+
+      const created = await this.fetchJson(
+        `${this.supabaseUrl}/rest/v1/enemies`,
+        {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'return=representation' },
+          body: JSON.stringify({
+            name: enemy.name,
+            description: enemy.description,
+            creature_type: enemy.type,
+            challenge_rating: '1',
+            source: 'Manual',
+          }),
+        }
+      );
+
+      const createdEnemy = Array.isArray(created) ? created[0] : created;
+      if (!createdEnemy?.id) {
+        throw new Error('No enemy id returned from Supabase.');
+      }
+
+      const attributeCodes = Object.keys(enemy.attributes || {});
+      if (!attributeCodes.length) {
+        return;
+      }
+
+      const codeList = attributeCodes.map((code) => `"${code}"`).join(',');
+      const attributes = await this.fetchJson(
+        `${this.supabaseUrl}/rest/v1/attributes?select=id,code&code=in.(${codeList})`,
+        { headers }
+      );
+
+      const idByCode = new Map(
+        (Array.isArray(attributes) ? attributes : []).map((attr) => [attr.code, attr.id])
+      );
+
+      const attributeRows = attributeCodes
+        .map((code) => ({
+          enemy_id: createdEnemy.id,
+          attribute_id: idByCode.get(code),
+          value: enemy.attributes[code],
+        }))
+        .filter((row) => row.attribute_id !== undefined && row.value !== null && row.value !== '');
+
+      if (!attributeRows.length) {
+        return;
+      }
+
+      await this.fetchJson(`${this.supabaseUrl}/rest/v1/enemy_attributes`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(attributeRows),
+      });
+    },
+    async fetchEnemies() {
+      this.isLoading = true;
+      this.loadError = '';
+
+      try {
+        const headers = {
+          apikey: this.supabaseAnonKey,
+          Authorization: `Bearer ${this.supabaseAnonKey}`,
+        };
+        const data = await this.fetchJson(
+          `${this.supabaseUrl}/rest/v1/enemies?select=id,name,creature_type,challenge_rating,enemy_attributes(value,attributes(code))&order=id.desc`,
+          { headers }
+        );
+        this.enemies = Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error('Supabase load failed:', error);
+        this.loadError = error?.message || 'Konnte Gegner nicht laden.';
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async fetchJson(url, options = {}) {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || `Request failed with ${response.status}`);
+      }
+
+      if (response.status === 204) {
+        return null;
+      }
+
+      return response.json();
+    },
+    getAttributeValue(enemy, code) {
+      const rows = enemy?.enemy_attributes || [];
+      const match = rows.find((row) => row?.attributes?.code === code);
+      if (!match) {
+        return '-';
+      }
+
+      return match.value ?? '-';
     },
     resetFilters() {
       this.filters.attributes = {
@@ -298,12 +463,22 @@ export default {
         FF: null,
         GE: null,
         KO: null,
-        KK: null
+        KK: null,
+        LE: null,
+        ASP: null,
+        KAP: null,
+        GS: null,
+        INI: null,
+        AW: null
       };
       this.filters.creatureType = [];
       this.filters.challengeRating = [];
       this.filters.weaponType = [];
     }
+  }
+  ,
+  mounted() {
+    this.fetchEnemies();
   }
 };
 </script>
@@ -707,6 +882,96 @@ h1 {
 
 .content {
   margin-bottom: 100px;
+}
+
+.enemy-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.enemy-card {
+  border: 1px solid #2d2d2d;
+  border-radius: 14px;
+  background: #141414;
+  padding: 14px 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+}
+
+.enemy-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.enemy-card__name {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.enemy-card__chip {
+  background: #2d2d2d;
+  border: 1px solid #8b7355;
+  color: #c9a961;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.enemy-card__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stat {
+  background: #1a1a1a;
+  border: 1px solid #2d2d2d;
+  border-radius: 10px;
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.stat__label {
+  display: block;
+  color: #8b7355;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.muted {
+  color: #8b7355;
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.enemy-list {
+  display: grid;
+  gap: 12px;
+}
+
+.enemy-list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border: 1px solid #2d2d2d;
+  border-radius: 10px;
+  background: #141414;
+}
+
+.muted {
+  color: #8b7355;
+}
+
+.small {
+  font-size: 0.85rem;
 }
 
 .add-btn {
