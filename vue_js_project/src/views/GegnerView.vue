@@ -185,9 +185,10 @@
       <div v-if="isLoading" class="muted">Lade Gegner...</div>
       <div v-else-if="loadError" class="muted">{{ loadError }}</div>
       <div v-else-if="!enemies.length" class="muted">Keine Gegner gefunden.</div>
+      <div v-else-if="!shownEnemies.length" class="muted">Keine Gegner passen zu den Filtern.</div>
 
       <div v-else class="enemy-grid">
-        <article v-for="enemy in enemies" :key="enemy.id" class="enemy-card">
+        <article v-for="enemy in shownEnemies" :key="enemy.id" class="enemy-card">
           <header class="enemy-card__head">
             <div>
               <strong class="enemy-card__name">{{ enemy.name }}</strong>
@@ -243,6 +244,7 @@ export default {
       supabaseUrl: 'https://dhomjjfeyoeynhunrnbs.supabase.co',
       supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRob21qamZleW9leW5odW5ybmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MjYwOTIsImV4cCI6MjA5NDIwMjA5Mn0.PaWu0BDYsWL2D4H4U6NoHHwwx2o9tAGt-1L4w2GdK64',
       enemies: [],
+      shownEnemies: [],
       isLoading: false,
       loadError: '',
       openDropdown: null,
@@ -425,12 +427,48 @@ export default {
           { headers }
         );
         this.enemies = Array.isArray(data) ? data : [];
+        this.filterEnemies();
       } catch (error) {
         console.error('Supabase load failed:', error);
         this.loadError = error?.message || 'Konnte Gegner nicht laden.';
       } finally {
         this.isLoading = false;
       }
+    },
+    filterEnemies() {
+      const filtered = this.enemies.filter((enemy) => {
+        // Attribute-Filter
+        for (const [code, value] of Object.entries(this.filters.attributes)) {
+          if (value !== null) {
+            const enemyValue = Number(this.getAttributeValue(enemy, code));
+            const tolerance = code === 'LE' ? 5 : 2;
+            if (!Number.isFinite(enemyValue) || Math.abs(enemyValue - value) > tolerance) {
+              return false;
+            }
+          }
+        }
+
+        // Creature Type Filter
+        if (this.filters.creatureType.length > 0 && !this.filters.creatureType.includes(enemy.creature_type)) {
+          return false;
+        }
+
+        // Challenge Rating Filter
+        if (this.filters.challengeRating.length > 0 && !this.filters.challengeRating.includes(enemy.challenge_rating)) {
+          return false;
+        }
+
+        // Weapon Type Filter
+        if (this.filters.weaponType.length > 0) {
+          const enemyWeaponTypes = (enemy.weapons || []).map((weapon) => weapon.type);
+          if (!enemyWeaponTypes.some((type) => this.filters.weaponType.includes(type))) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+      this.shownEnemies = filtered;
     },
     async fetchJson(url, options = {}) {
       const response = await fetch(url, options);
@@ -474,9 +512,18 @@ export default {
       this.filters.creatureType = [];
       this.filters.challengeRating = [];
       this.filters.weaponType = [];
+      this.filterEnemies();
     }
   }
   ,
+  watch: {
+    filters: {
+      deep: true,
+      handler() {
+        this.filterEnemies();
+      }
+    }
+  },
   mounted() {
     this.fetchEnemies();
   }
