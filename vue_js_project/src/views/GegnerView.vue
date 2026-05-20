@@ -226,7 +226,12 @@
     <button class="add-btn" @click="openAddEnemy">+</button>
 
     <transition name="fade">
-      <AddEnemyView v-if="showAddEnemy" @save-enemy="handleSaveEnemy" />
+      <AddEnemyView
+        v-if="showAddEnemy"
+        :supabase-url="supabaseUrl"
+        :supabase-anon-key="supabaseAnonKey"
+        @save-enemy="handleSaveEnemy"
+      />
     </transition>
   </div>
 </template>

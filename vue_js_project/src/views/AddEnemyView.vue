@@ -36,7 +36,10 @@
           <input v-model="w.details" placeholder="Kurz (z.B. 1W6+2 / AT+1)" />
           <button type="button" class="btn small" @click="removeWeapon(idx)">Entfernen</button>
         </div>
-        <button type="button" class="btn" @click="addWeapon">Waffe hinzufügen</button>
+        <div class="weapon-actions">
+          <button type="button" class="btn" @click="addWeapon">Waffe manuell</button>
+          <button type="button" class="btn" @click="openWeaponSearch">Waffe aus DB</button>
+        </div>
       </section>
 
       <section class="card">
@@ -81,12 +84,57 @@
         <button type="button" class="btn" @click="resetForm">Zurücksetzen</button>
       </div>
     </form>
+
+    <div v-if="showWeaponSearch" class="modal-backdrop" @click="closeWeaponSearch">
+      <div class="modal" @click.stop>
+        <header class="modal__head">
+          <h3>Waffe suchen</h3>
+          <button type="button" class="btn small" @click="closeWeaponSearch">Schließen</button>
+        </header>
+        <div class="modal__body">
+          <input
+            v-model="weaponQuery"
+            class="search-input"
+            placeholder="Name der Waffe..."
+            @input="queueWeaponSearch"
+          />
+          <div v-if="weaponLoading" class="muted">Suche...</div>
+          <div v-else-if="weaponError" class="muted">{{ weaponError }}</div>
+          <div v-else-if="!weaponResults.length" class="muted">Keine Treffer.</div>
+          <div v-else class="weapon-results">
+            <button
+              v-for="weapon in weaponResults"
+              :key="weapon.id"
+              type="button"
+              class="weapon-result"
+              @click="selectWeapon(weapon)"
+            >
+              <div>
+                <strong>{{ weapon.name }}</strong>
+                <div class="muted small">{{ weapon.weapon_type || 'Unbekannt' }}</div>
+              </div>
+              <span class="tag">Auswählen</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 export default {
   name: 'AddEnemyView',
+  props: {
+    supabaseUrl: {
+      type: String,
+      required: true,
+    },
+    supabaseAnonKey: {
+      type: String,
+      required: true,
+    },
+  },
   emits: ['save-enemy'],
   data() {
     return {
@@ -110,6 +158,12 @@ export default {
       tempAdv: '',
       tempDis: '',
       tempSF: '',
+      showWeaponSearch: false,
+      weaponQuery: '',
+      weaponResults: [],
+      weaponLoading: false,
+      weaponError: '',
+      weaponSearchTimer: null,
     };
   },
   methods: {
@@ -143,6 +197,79 @@ export default {
     addWeapon() {
       this.form.weapons.push({ name: '', type: '', details: '' });
     },
+    openWeaponSearch() {
+      this.showWeaponSearch = true;
+      this.weaponError = '';
+      if (!this.weaponResults.length) {
+        this.fetchWeapons();
+      }
+    },
+    closeWeaponSearch() {
+      this.showWeaponSearch = false;
+    },
+    queueWeaponSearch() {
+      if (this.weaponSearchTimer) {
+        clearTimeout(this.weaponSearchTimer);
+      }
+      this.weaponSearchTimer = setTimeout(() => {
+        this.fetchWeapons();
+      }, 250);
+    },
+    async fetchWeapons() {
+      this.weaponLoading = true;
+      this.weaponError = '';
+
+      try {
+        const headers = {
+          apikey: this.supabaseAnonKey,
+          Authorization: `Bearer ${this.supabaseAnonKey}`,
+        };
+        const query = this.weaponQuery.trim();
+        const filter = query ? `&name=ilike.*${encodeURIComponent(query)}*` : '';
+        const url = `${this.supabaseUrl}/rest/v1/weapons?select=id,name,weapon_type,combat_technique,damage_dice_count,damage_dice_sides,damage_bonus,attack_mod,parry_mod,range_distance,initiative_mod,special_rules&order=name.asc${filter}`;
+        const response = await fetch(url, { headers });
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || `Request failed with ${response.status}`);
+        }
+        const data = await response.json();
+        this.weaponResults = Array.isArray(data) ? data : [];
+      } catch (error) {
+        this.weaponError = error?.message || 'Konnte Waffen nicht laden.';
+      } finally {
+        this.weaponLoading = false;
+      }
+    },
+    selectWeapon(weapon) {
+      this.form.weapons.push({
+        weapon_id: weapon.id,
+        name: weapon.name,
+        type: weapon.weapon_type,
+        details: this.buildWeaponDetails(weapon),
+      });
+      this.closeWeaponSearch();
+    },
+    buildWeaponDetails(weapon) {
+      const parts = [];
+      if (weapon.combat_technique) {
+        parts.push(weapon.combat_technique);
+      }
+      if (weapon.damage_dice_count || weapon.damage_dice_sides || weapon.damage_bonus !== null) {
+        const bonus = weapon.damage_bonus ? `+${weapon.damage_bonus}` : '';
+        const dice = `${weapon.damage_dice_count || 0}W${weapon.damage_dice_sides || 0}${bonus}`;
+        parts.push(`Schaden ${dice}`);
+      }
+      if (weapon.attack_mod !== null || weapon.parry_mod !== null) {
+        parts.push(`AT ${weapon.attack_mod ?? '-'} / PA ${weapon.parry_mod ?? '-'}`);
+      }
+      if (weapon.range_distance) {
+        parts.push(`Reichweite ${weapon.range_distance}`);
+      }
+      if (weapon.special_rules) {
+        parts.push(weapon.special_rules);
+      }
+      return parts.length ? parts.join(' · ') : '';
+    },
     removeWeapon(i) {
       this.form.weapons.splice(i, 1);
     },
@@ -156,6 +283,9 @@ export default {
     resetForm() {
       this.form = this.emptyForm();
       this.tempAdv = this.tempDis = this.tempSF = '';
+      this.weaponQuery = '';
+      this.weaponResults = [];
+      this.weaponError = '';
     },
     handleSubmit() {
       // emit a copy so parent can safely mutate
@@ -178,9 +308,20 @@ input, textarea { width:100%; padding:8px 10px; border:1px solid #d8cbb3; border
 .attr-item input { text-align:center }
 .weapon-row { display:flex; gap:8px; margin-bottom:8px }
 .weapon-row input { flex:1 }
+.weapon-actions { display:flex; gap:8px; margin-top:8px }
 .btn { padding:6px 10px; border:none; background:#eee; border-radius:6px; cursor:pointer }
 .btn.small { padding:4px 8px }
 .btn.primary { background:#c9a961; color:#fff }
+.modal-backdrop { position:fixed; inset:0; background:rgba(14,12,10,0.7); display:flex; align-items:center; justify-content:center; padding:16px; z-index:20 }
+.modal { background:#fff; border-radius:12px; width:min(640px, 100%); padding:16px; box-shadow:0 18px 40px rgba(0,0,0,0.35) }
+.modal__head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px }
+.modal__body { display:flex; flex-direction:column; gap:10px }
+.weapon-results { display:flex; flex-direction:column; gap:8px; max-height:320px; overflow:auto }
+.weapon-result { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 12px; border:1px solid #e6dcc6; border-radius:8px; background:#faf7f0; cursor:pointer }
+.weapon-result:hover { background:#f1e8d6 }
+.tag { background:#c9a961; color:#fff; padding:2px 8px; border-radius:999px; font-size:0.75rem }
+.muted { color:#6b5b43 }
+.small { font-size:0.85rem }
 .inline-input { display:flex; gap:8px }
 .chip-list { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px }
 .chip { background:#f3efe6; padding:6px 8px; border-radius:999px }
