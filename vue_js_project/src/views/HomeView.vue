@@ -23,11 +23,11 @@
           <h3>Kampf</h3>
           <p>Starte den Kampf mit den Gegnern deiner Wahl.</p>
         </div>
-        <div class="info-card">
+        <router-link to="/waffen" class="info-card">
           <div class="card-icon">⚔️</div>
           <h3>Waffen</h3>
           <p>Entdecke alle verfügbaren Waffen.</p>
-        </div>
+        </router-link>
       </div>
     </div>
 
