@@ -19,7 +19,7 @@
 
         <div class="form-group">
           <label>Waffentyp:</label>
-          <select v-model="weapon.weaponType" required>
+          <select v-model="weapon.weapon_type" required>
             <option value="">-- Auswählen --</option>
             <option value="Armbrüste">Armbrüste</option>
             <option value="Blasrohre">Blasrohre</option>
@@ -46,29 +46,76 @@
           </select>
         </div>
 
-        <div class="form-group">
-          <label>Schadensklasse:</label>
-          <input
-            v-model="weapon.damageClass"
-            type="text"
-            placeholder="z.B. 1W8"
-          >
+        <div class="form-row">
+          <div class="form-group">
+            <label>Kampftechnik:</label>
+            <input
+              v-model="weapon.combat_technique"
+              type="text"
+              placeholder="z.B. Schwerter"
+            >
+          </div>
+
+          <div class="form-group">
+            <label>Fernwaffe:</label>
+            <input v-model="weapon.is_ranged" type="checkbox">
+          </div>
         </div>
 
-        <div class="form-group">
-          <label>Kampftechnik:</label>
-          <input
-            v-model="weapon.combatTechnique"
-            type="text"
-            placeholder="z.B. Schwerter"
-          >
+        <div class="form-row">
+          <div class="form-group">
+            <label>Schadenswürfel (Anzahl):</label>
+            <input
+              v-model.number="weapon.damage_dice_count"
+              type="number"
+              placeholder="z.B. 1"
+            >
+          </div>
+
+          <div class="form-group">
+            <label>Schadenswürfel (Seiten):</label>
+            <input
+              v-model.number="weapon.damage_dice_sides"
+              type="number"
+              placeholder="z.B. 8"
+            >
+          </div>
+
+          <div class="form-group">
+            <label>Schadensbonus:</label>
+            <input
+              v-model.number="weapon.damage_bonus"
+              type="number"
+              placeholder="z.B. 2"
+            >
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Angriff Mod.:</label>
+            <input
+              v-model.number="weapon.attack_mod"
+              type="number"
+              placeholder="z.B. +1"
+            >
+          </div>
+
+          <div class="form-group">
+            <label>Parade Mod.:</label>
+            <input
+              v-model.number="weapon.parry_mod"
+              type="number"
+              placeholder="z.B. +1"
+            >
+          </div>
         </div>
 
         <div class="form-group">
           <label>Beschreibung:</label>
           <textarea
-            v-model="weapon.description"
-            placeholder="Beschreibung der Waffe..."
+            v-model="weapon.special_rules"
+            placeholder="Spezialregeln oder Beschreibung..."
             rows="4"
           ></textarea>
         </div>
@@ -93,10 +140,16 @@ export default {
     return {
       weapon: {
         name: '',
-        weaponType: '',
-        damageClass: '',
-        combatTechnique: '',
-        description: ''
+        weapon_type: '',
+        combat_technique: '',
+        damage_dice_count: null,
+        damage_dice_sides: null,
+        damage_bonus: null,
+        attack_mod: null,
+        parry_mod: null,
+        is_ranged: false,
+        hands_required: true,
+        special_rules: ''
       }
     };
   },
@@ -111,10 +164,16 @@ export default {
     resetForm() {
       this.weapon = {
         name: '',
-        weaponType: '',
-        damageClass: '',
-        combatTechnique: '',
-        description: ''
+        weapon_type: '',
+        combat_technique: '',
+        damage_dice_count: null,
+        damage_dice_sides: null,
+        damage_bonus: null,
+        attack_mod: null,
+        parry_mod: null,
+        is_ranged: false,
+        hands_required: true,
+        special_rules: ''
       };
     }
   }
@@ -140,9 +199,9 @@ export default {
   border: 2px solid #c9a961;
   border-radius: 8px;
   padding: 30px;
-  max-width: 500px;
+  max-width: 600px;
   width: 90%;
-  max-height: 80vh;
+  max-height: 85vh;
   overflow-y: auto;
   box-shadow: 0 8px 32px rgba(201, 169, 97, 0.3);
 }
@@ -223,6 +282,16 @@ export default {
 .form-group textarea {
   resize: vertical;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+.form-row .form-group {
+  gap: 6px;
 }
 
 .form-actions {

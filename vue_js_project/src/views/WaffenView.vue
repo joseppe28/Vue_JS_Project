@@ -160,27 +160,48 @@
     </transition>
 
     <div class="content">
-      <!-- Waffen werden hier angezeigt -->
+      <div v-if="weapons.length > 0" class="weapons-grid">
+        <Weapon
+          v-for="weapon in weapons"
+          :key="weapon.id"
+          :weapon="weapon"
+          @edit="editWeapon"
+          @delete="deleteWeapon"
+        />
+      </div>
+      <div v-else class="empty-state">
+        <p>Keine Waffen vorhanden. Füge eine neue Waffe mit dem "+" Button hinzu!</p>
+      </div>
     </div>
 
     <button class="add-btn" @click="openAddWeapon">+</button>
 
     <transition name="fade">
-      <AddWeaponView v-if="showAddWeapon" @save-weapon="handleSaveWeapon" />
+      <AddWeaponView 
+        v-if="showAddWeapon" 
+        @save-weapon="handleSaveWeapon"
+        @close="showAddWeapon = false"
+      />
     </transition>
   </div>
 </template>
 
 <script>
 import AddWeaponView from './AddWeaponView.vue'
+import Weapon from '../components/Weapon.vue'
 
 export default {
   name: 'WaffenView',
-  components: { AddWeaponView },
+  components: { AddWeaponView, Weapon },
   data() {
     return {
       showFilter: false,
       showAddWeapon: false,
+      supabaseUrl: 'https://dhomjjfeyoeynhunrnbs.supabase.co',
+      supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRob21qamZleW9leW5odW5ybmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MjYwOTIsImV4cCI6MjA5NDIwMjA5Mn0.PaWu0BDYsWL2D4H4U6NoHHwwx2o9tAGt-1L4w2GdK64',
+      weapons: [],
+      isLoading: false,
+      loadError: '',
       openDropdown: null,
       weaponTypes: [
         'Armbrüste', 'Blasrohre', 'Bögen', 'Diskusse', 'Dolche',
@@ -245,15 +266,114 @@ export default {
       this.showAddWeapon = true;
     },
     handleSaveWeapon(weapon) {
-      // Schließe das Formular und gib das neue Waffen-Objekt weiter
       this.showAddWeapon = false;
-      this.$emit('weapon-added', weapon);
+
+      (async () => {
+        try {
+          await this.saveWeaponToSupabase(weapon);
+          await this.fetchWeapons();
+          this.$emit('weapon-added', weapon);
+        } catch (error) {
+          console.error('Supabase save failed:', error);
+          const message = error?.message || 'Unbekannter Fehler';
+          alert(`Speichern fehlgeschlagen: ${message}`);
+        }
+      })();
+    },
+    async saveWeaponToSupabase(weapon) {
+      const headers = {
+        apikey: this.supabaseAnonKey,
+        Authorization: `Bearer ${this.supabaseAnonKey}`,
+        'Content-Type': 'application/json',
+      };
+
+      const body = {
+        name: weapon.name,
+        weapon_type: weapon.weapon_type,
+        combat_technique: weapon.combat_technique || null,
+        damage_dice_count: weapon.damage_dice_count || null,
+        damage_dice_sides: weapon.damage_dice_sides || null,
+        damage_bonus: weapon.damage_bonus || null,
+        attack_mod: weapon.attack_mod || null,
+        parry_mod: weapon.parry_mod || null,
+        is_ranged: weapon.is_ranged || false,
+        hands_required: weapon.hands_required !== false,
+        special_rules: weapon.special_rules || null
+      };
+
+      await this.fetchJson(
+        `${this.supabaseUrl}/rest/v1/weapons`,
+        {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'return=representation' },
+          body: JSON.stringify(body),
+        }
+      );
+    },
+    async fetchWeapons() {
+      this.isLoading = true;
+      this.loadError = '';
+
+      try {
+        const headers = {
+          apikey: this.supabaseAnonKey,
+          Authorization: `Bearer ${this.supabaseAnonKey}`,
+        };
+        const data = await this.fetchJson(
+          `${this.supabaseUrl}/rest/v1/weapons?order=id.desc`,
+          { headers }
+        );
+        this.weapons = Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error('Supabase load failed:', error);
+        this.loadError = error?.message || 'Konnte Waffen nicht laden.';
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async fetchJson(url, options = {}) {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || `Request failed with ${response.status}`);
+      }
+
+      if (response.status === 204) {
+        return null;
+      }
+
+      return response.json();
     },
     resetFilters() {
       this.filters.weaponType = [];
       this.filters.damageClass = [];
       this.filters.combatTechnique = [];
+    },
+    editWeapon(weapon) {
+      // Öffne Edit-Modal wenn implementiert
+      console.log('Waffe bearbeiten:', weapon);
+    },
+    async deleteWeapon(weapon) {
+      if (!confirm('Waffe wirklich löschen?')) return;
+
+      try {
+        const headers = {
+          apikey: this.supabaseAnonKey,
+          Authorization: `Bearer ${this.supabaseAnonKey}`,
+        };
+        await this.fetchJson(
+          `${this.supabaseUrl}/rest/v1/weapons?id=eq.${weapon.id}`,
+          { method: 'DELETE', headers }
+        );
+        await this.fetchWeapons();
+      } catch (error) {
+        console.error('Delete failed:', error);
+        alert('Löschen fehlgeschlagen');
+      }
     }
+  },
+  mounted() {
+    this.fetchWeapons();
   }
 };
 </script>
@@ -574,6 +694,20 @@ h1 {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.weapons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  margin-bottom: 50px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #8b7355;
+  font-size: 1.1rem;
 }
 
 @keyframes slideIn {
