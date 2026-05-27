@@ -18,11 +18,11 @@
           <h3>Gegner</h3>
           <p>Alle Gegner auf einen Blick.</p>
         </router-link>
-        <div class="info-card">
+        <router-link to="/simulation" class="info-card">
           <div class="card-icon">✨</div>
           <h3>Kampf</h3>
           <p>Starte den Kampf mit den Gegnern deiner Wahl.</p>
-        </div>
+        </router-link>
         <router-link to="/waffen" class="info-card">
           <div class="card-icon">⚔️</div>
           <h3>Waffen</h3>
