@@ -7,6 +7,7 @@
           type="text"
           class="search-input"
           placeholder="Waffen suchen..."
+          v-model="searchQuery"
         >
         <span class="search-icon">🔍</span>
       </div>
@@ -160,17 +161,23 @@
     </transition>
 
     <div class="content">
-      <div v-if="weapons.length > 0" class="weapons-grid">
+      <div v-if="isLoading" class="muted">Lade Waffen...</div>
+      <div v-else-if="loadError" class="muted">{{ loadError }}</div>
+      <div v-else-if="!weapons.length" class="empty-state">
+        <p>Keine Waffen vorhanden. Füge eine neue Waffe mit dem "+" Button hinzu!</p>
+      </div>
+      <div v-else-if="!shownWeapons.length" class="empty-state">
+        <p>Keine Waffen passen zu den Filtern.</p>
+      </div>
+
+      <div v-else class="weapons-grid">
         <Weapon
-          v-for="weapon in weapons"
+          v-for="weapon in shownWeapons"
           :key="weapon.id"
           :weapon="weapon"
           @edit="editWeapon"
           @delete="deleteWeapon"
         />
-      </div>
-      <div v-else class="empty-state">
-        <p>Keine Waffen vorhanden. Füge eine neue Waffe mit dem "+" Button hinzu!</p>
       </div>
     </div>
 
@@ -200,6 +207,8 @@ export default {
       supabaseUrl: 'https://dhomjjfeyoeynhunrnbs.supabase.co',
       supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRob21qamZleW9leW5odW5ybmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MjYwOTIsImV4cCI6MjA5NDIwMjA5Mn0.PaWu0BDYsWL2D4H4U6NoHHwwx2o9tAGt-1L4w2GdK64',
       weapons: [],
+      shownWeapons: [],
+      searchQuery: '',
       isLoading: false,
       loadError: '',
       openDropdown: null,
@@ -324,6 +333,7 @@ export default {
           { headers }
         );
         this.weapons = Array.isArray(data) ? data : [];
+        this.filterWeapons();
       } catch (error) {
         console.error('Supabase load failed:', error);
         this.loadError = error?.message || 'Konnte Waffen nicht laden.';
@@ -344,10 +354,54 @@ export default {
 
       return response.json();
     },
+    filterWeapons() {
+      const query = this.searchQuery.trim().toLowerCase();
+      const filtered = this.weapons.filter((weapon) => {
+        if (query) {
+          const name = (weapon.name || '').toLowerCase();
+          if (!name.includes(query)) {
+            return false;
+          }
+        }
+
+        if (this.filters.weaponType.length > 0 && !this.filters.weaponType.includes(weapon.weapon_type)) {
+          return false;
+        }
+
+        if (this.filters.combatTechnique.length > 0 && !this.filters.combatTechnique.includes(weapon.combat_technique)) {
+          return false;
+        }
+
+        if (this.filters.damageClass.length > 0) {
+          const damageClass = this.getDamageClass(weapon);
+          if (!damageClass || !this.filters.damageClass.includes(damageClass)) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      this.shownWeapons = filtered;
+    },
+    getDamageClass(weapon) {
+      const count = weapon.damage_dice_count;
+      const sides = weapon.damage_dice_sides;
+      if (!count || !sides) {
+        return '';
+      }
+
+      if (count === 1 && sides === 20) {
+        return 'W20';
+      }
+
+      return `${count}W${sides}`;
+    },
     resetFilters() {
       this.filters.weaponType = [];
       this.filters.damageClass = [];
       this.filters.combatTechnique = [];
+      this.filterWeapons();
     },
     editWeapon(weapon) {
       // Öffne Edit-Modal wenn implementiert
@@ -374,6 +428,17 @@ export default {
   },
   mounted() {
     this.fetchWeapons();
+  },
+  watch: {
+    searchQuery() {
+      this.filterWeapons();
+    },
+    filters: {
+      deep: true,
+      handler() {
+        this.filterWeapons();
+      }
+    }
   }
 };
 </script>
