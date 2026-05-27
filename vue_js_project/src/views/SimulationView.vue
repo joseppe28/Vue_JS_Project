@@ -35,7 +35,13 @@
             <div>
               <strong>{{ player.name }}</strong>
               <div class="muted small">INI {{ player.ini }}</div>
+              <div v-if="player.effects && player.effects.length" class="tag-list">
+                <span v-for="effect in player.effects" :key="effect.id" class="tag">
+                  {{ effect.name }} ({{ effect.rounds }})
+                </span>
+              </div>
             </div>
+            <button class="btn small" @click="openEffectModal(player)">Effekt</button>
           </article>
         </div>
       </div>
@@ -52,8 +58,14 @@
               <strong>{{ enemy.name }}</strong>
               <div class="muted small">INI {{ enemy.ini }}</div>
               <div class="muted small">LE {{ enemy.hp }} | RS {{ enemy.rs }}</div>
+              <div v-if="enemy.effects && enemy.effects.length" class="tag-list">
+                <span v-for="effect in enemy.effects" :key="effect.id" class="tag">
+                  {{ effect.name }} ({{ effect.rounds }})
+                </span>
+              </div>
             </div>
             <button class="btn small" @click="openDamageModal(enemy)">Schaden</button>
+            <button class="btn small" @click="openEffectModal(enemy)">Effekt</button>
           </article>
         </div>
       </div>
@@ -124,6 +136,20 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showEffectModal" class="modal-backdrop" @click="closeEffectModal">
+      <div class="modal" @click.stop>
+        <header class="modal__head">
+          <h3>Effekt hinzufuegen</h3>
+          <button type="button" class="btn small" @click="closeEffectModal">Schliessen</button>
+        </header>
+        <div class="modal__body">
+          <input v-model="effectForm.name" placeholder="Effektname" />
+          <input v-model.number="effectForm.rounds" type="number" min="1" placeholder="Runden" />
+          <button class="btn primary" @click="addEffect">Hinzufuegen</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -152,6 +178,9 @@ export default {
       damageTarget: null,
       damageValue: 0,
       damageIsTp: true,
+      showEffectModal: false,
+      effectTarget: null,
+      effectForm: { name: '', rounds: 1 },
     };
   },
   computed: {
@@ -181,6 +210,7 @@ export default {
         name: this.playerForm.name.trim(),
         ini: Number(this.playerForm.ini) || 0,
         isPlayer: true,
+        effects: [],
       });
       this.playerForm = { name: '', ini: 10 };
       this.closePlayerModal();
@@ -239,6 +269,7 @@ export default {
         hp: le,
         rs,
         isPlayer: false,
+        effects: [],
       });
       this.closeEnemyModal();
     },
@@ -260,6 +291,7 @@ export default {
       } else {
         this.currentIndex += 1;
       }
+      this.tickEffectsFor(this.turnOrder[this.currentIndex]);
     },
     openDamageModal(target) {
       this.damageTarget = target;
@@ -269,6 +301,40 @@ export default {
     },
     closeDamageModal() {
       this.showDamageModal = false;
+    },
+    openEffectModal(target) {
+      this.effectTarget = target;
+      this.effectForm = { name: '', rounds: 1 };
+      this.showEffectModal = true;
+    },
+    closeEffectModal() {
+      this.showEffectModal = false;
+    },
+    addEffect() {
+      if (!this.effectTarget || !this.effectForm.name) {
+        return;
+      }
+      const rounds = Number(this.effectForm.rounds) || 1;
+      if (!this.effectTarget.effects) {
+        this.effectTarget.effects = [];
+      }
+      this.effectTarget.effects.push({
+        id: `fx-${Date.now()}`,
+        name: this.effectForm.name.trim(),
+        rounds,
+      });
+      this.closeEffectModal();
+    },
+    tickEffectsFor(target) {
+      if (!target || !target.effects || !target.effects.length) {
+        return;
+      }
+      target.effects = target.effects
+        .map((effect) => ({
+          ...effect,
+          rounds: effect.rounds - 1,
+        }))
+        .filter((effect) => effect.rounds > 0);
     },
     applyDamage() {
       if (!this.damageTarget) {
