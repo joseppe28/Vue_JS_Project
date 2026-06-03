@@ -68,7 +68,6 @@
                 </span>
               </div>
             </div>
-            <button class="btn small" @click="openDamageModal(enemy)" :disabled="!encounterStarted">Schaden</button>
             <button class="btn small" @click="openEffectModal(enemy)">Effekt</button>
           </article>
         </div>
@@ -82,9 +81,15 @@
           <button type="button" class="btn small" @click="closePlayerModal">Schliessen</button>
         </header>
         <div class="modal__body">
-          <input v-model="playerForm.name" placeholder="Spielername" />
-          <input v-model.number="playerForm.ini" type="number" min="0" placeholder="INI" />
-          <input v-model.number="playerForm.hp" type="number" min="0" placeholder="LE" />
+          <label>Spielername
+          <input v-model="playerForm.name" />
+          </label>
+          <label>Initiative (INI)
+          <input v-model.number="playerForm.ini" type="number" min="0" />
+          </label>
+          <label>Lebensenergie (LE)
+          <input v-model.number="playerForm.hp" type="number" min="0" />
+          </label>
           <button class="btn primary" @click="addPlayer">Hinzufuegen</button>
         </div>
       </div>
@@ -159,8 +164,12 @@
           <button type="button" class="btn small" @click="closeEffectModal">Schliessen</button>
         </header>
         <div class="modal__body">
-          <input v-model="effectForm.name" placeholder="Effektname" />
-          <input v-model.number="effectForm.rounds" type="number" min="1" placeholder="Runden" />
+          <label>Effektname
+          <input v-model="effectForm.name" />
+          </label>
+          <label>Dauer in Runden
+          <input v-model.number="effectForm.rounds" type="number" min="1" />
+          </label>
           <button class="btn primary" @click="addEffect">Hinzufuegen</button>
         </div>
       </div>
@@ -206,7 +215,9 @@
               <button class="btn" @click="markDodged(true)">Ausgewichen</button>
               <button class="btn primary" @click="markDodged(false)">Getroffen</button>
             </div>
-            <input v-model.number="attackDamage" type="number" min="0" placeholder="Schaden" />
+            <label>Verursachter Schaden
+            <input v-model.number="attackDamage" type="number" min="0" />
+            </label>
             <button class="btn primary" @click="applyAttack" :disabled="attackDodged === null">
               Anwenden
             </button>
@@ -800,6 +811,14 @@ input {
 
 .close-btn:hover {
   background-color: rgba(201, 169, 97, 0.1);
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .muted {
