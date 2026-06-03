@@ -1,0 +1,601 @@
+<template>
+  <div class="simulation-view">
+    <header class="header">
+      <h1>Simulation</h1>
+      <div class="turn-info">
+        <div class="turn-chip">Runde {{ turnCounter }}</div>
+        <div class="turn-current">
+          <span class="muted">Aktueller Zug</span>
+          <strong>{{ currentActorLabel }}</strong>
+        </div>
+      </div>
+      <router-link to="/" class="close-btn">✕</router-link>
+    </header>
+
+    <section class="action-bar">
+      <button class="btn" @click="openPlayerModal">+ Spieler</button>
+      <button class="btn" @click="openEnemyModal">+ Gegner</button>
+      <button class="btn primary" @click="startEncounter" :disabled="!canStart">
+        Kampf starten
+      </button>
+      <button class="btn" @click="nextTurn" :disabled="!encounterStarted || !turnOrder.length">
+        Naechster Zug
+      </button>
+    </section>
+
+    <section class="boards">
+      <div class="board">
+        <header class="board__head">
+          <h2>Spieler</h2>
+          <span class="muted">{{ players.length }} Teilnehmer</span>
+        </header>
+        <div v-if="!players.length" class="empty-state">Noch keine Spieler.</div>
+        <div v-else class="card-grid">
+          <article v-for="player in players" :key="player.id" class="card">
+            <div>
+              <strong>{{ player.name }}</strong>
+              <div class="muted small">INI {{ player.ini }}</div>
+              <div v-if="player.effects && player.effects.length" class="tag-list">
+                <span v-for="effect in player.effects" :key="effect.id" class="tag">
+                  {{ effect.name }} ({{ effect.rounds }})
+                </span>
+              </div>
+            </div>
+            <button class="btn small" @click="openEffectModal(player)">Effekt</button>
+          </article>
+        </div>
+      </div>
+
+      <div class="board">
+        <header class="board__head">
+          <h2>DM</h2>
+          <span class="muted">{{ enemies.length }} Gegner</span>
+        </header>
+        <div v-if="!enemies.length" class="empty-state">Noch keine Gegner.</div>
+        <div v-else class="card-grid">
+          <article v-for="enemy in enemies" :key="enemy.id" class="card">
+            <div>
+              <strong>{{ enemy.name }}</strong>
+              <div class="muted small">INI {{ enemy.ini }}</div>
+              <div class="muted small">LE {{ enemy.hp }} | RS {{ enemy.rs }}</div>
+              <div v-if="enemy.effects && enemy.effects.length" class="tag-list">
+                <span v-for="effect in enemy.effects" :key="effect.id" class="tag">
+                  {{ effect.name }} ({{ effect.rounds }})
+                </span>
+              </div>
+            </div>
+            <button class="btn small" @click="openDamageModal(enemy)">Schaden</button>
+            <button class="btn small" @click="openEffectModal(enemy)">Effekt</button>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <div v-if="showPlayerModal" class="modal-backdrop" @click="closePlayerModal">
+      <div class="modal" @click.stop>
+        <header class="modal__head">
+          <h3>Spieler hinzufuegen</h3>
+          <button type="button" class="btn small" @click="closePlayerModal">Schliessen</button>
+        </header>
+        <div class="modal__body">
+          <input v-model="playerForm.name" placeholder="Spielername" />
+          <input v-model.number="playerForm.ini" type="number" min="0" placeholder="INI" />
+          <button class="btn primary" @click="addPlayer">Hinzufuegen</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showEnemyModal" class="modal-backdrop" @click="closeEnemyModal">
+      <div class="modal" @click.stop>
+        <header class="modal__head">
+          <h3>Gegner suchen</h3>
+          <button type="button" class="btn small" @click="closeEnemyModal">Schliessen</button>
+        </header>
+        <div class="modal__body">
+          <input
+            v-model="enemyQuery"
+            class="search-input"
+            placeholder="Name des Gegners..."
+            @input="queueEnemySearch"
+          />
+          <div v-if="enemyLoading" class="muted">Suche...</div>
+          <div v-else-if="enemyError" class="muted">{{ enemyError }}</div>
+          <div v-else-if="!enemyResults.length" class="muted">Keine Treffer.</div>
+          <div v-else class="result-list">
+            <button
+              v-for="enemy in enemyResults"
+              :key="enemy.id"
+              class="result-item"
+              type="button"
+              @click="selectEnemy(enemy)"
+            >
+              <div>
+                <strong>{{ enemy.name }}</strong>
+                <div class="muted small">INI {{ getAttributeValue(enemy, 'INI') }} | LE {{ getAttributeValue(enemy, 'LE') }}</div>
+              </div>
+              <span class="tag">Auswaehlen</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showDamageModal" class="modal-backdrop" @click="closeDamageModal">
+      <div class="modal" @click.stop>
+        <header class="modal__head">
+          <h3>Schaden</h3>
+          <button type="button" class="btn small" @click="closeDamageModal">Schliessen</button>
+        </header>
+        <div class="modal__body">
+          <div class="damage-row">
+            <label>TP beruecksichtigen (RS abziehen)</label>
+            <input type="checkbox" v-model="damageIsTp" />
+          </div>
+          <input v-model.number="damageValue" type="number" min="0" placeholder="Schaden" />
+          <button class="btn primary" @click="applyDamage">Anwenden</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showEffectModal" class="modal-backdrop" @click="closeEffectModal">
+      <div class="modal" @click.stop>
+        <header class="modal__head">
+          <h3>Effekt hinzufuegen</h3>
+          <button type="button" class="btn small" @click="closeEffectModal">Schliessen</button>
+        </header>
+        <div class="modal__body">
+          <input v-model="effectForm.name" placeholder="Effektname" />
+          <input v-model.number="effectForm.rounds" type="number" min="1" placeholder="Runden" />
+          <button class="btn primary" @click="addEffect">Hinzufuegen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'SimulationView',
+  data() {
+    return {
+      supabaseUrl: 'https://dhomjjfeyoeynhunrnbs.supabase.co',
+      supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRob21qamZleW9leW5odW5ybmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MjYwOTIsImV4cCI6MjA5NDIwMjA5Mn0.PaWu0BDYsWL2D4H4U6NoHHwwx2o9tAGt-1L4w2GdK64',
+      players: [],
+      enemies: [],
+      turnOrder: [],
+      currentIndex: 0,
+      turnCounter: 1,
+      encounterStarted: false,
+      showPlayerModal: false,
+      showEnemyModal: false,
+      showDamageModal: false,
+      playerForm: { name: '', ini: 10 },
+      enemyQuery: '',
+      enemyResults: [],
+      enemyLoading: false,
+      enemyError: '',
+      enemySearchTimer: null,
+      damageTarget: null,
+      damageValue: 0,
+      damageIsTp: true,
+      showEffectModal: false,
+      effectTarget: null,
+      effectForm: { name: '', rounds: 1 },
+    };
+  },
+  computed: {
+    canStart() {
+      return this.players.length + this.enemies.length > 0;
+    },
+    currentActorLabel() {
+      if (!this.encounterStarted || !this.turnOrder.length) {
+        return '-';
+      }
+      return this.turnOrder[this.currentIndex]?.name || '-';
+    },
+  },
+  methods: {
+    openPlayerModal() {
+      this.showPlayerModal = true;
+    },
+    closePlayerModal() {
+      this.showPlayerModal = false;
+    },
+    addPlayer() {
+      if (!this.playerForm.name || this.playerForm.ini === null) {
+        return;
+      }
+      this.players.push({
+        id: `p-${Date.now()}`,
+        name: this.playerForm.name.trim(),
+        ini: Number(this.playerForm.ini) || 0,
+        isPlayer: true,
+        effects: [],
+      });
+      this.playerForm = { name: '', ini: 10 };
+      this.closePlayerModal();
+    },
+    openEnemyModal() {
+      this.showEnemyModal = true;
+      this.enemyError = '';
+      if (!this.enemyResults.length) {
+        this.fetchEnemies();
+      }
+    },
+    closeEnemyModal() {
+      this.showEnemyModal = false;
+    },
+    queueEnemySearch() {
+      if (this.enemySearchTimer) {
+        clearTimeout(this.enemySearchTimer);
+      }
+      this.enemySearchTimer = setTimeout(() => {
+        this.fetchEnemies();
+      }, 250);
+    },
+    async fetchEnemies() {
+      this.enemyLoading = true;
+      this.enemyError = '';
+
+      try {
+        const headers = {
+          apikey: this.supabaseAnonKey,
+          Authorization: `Bearer ${this.supabaseAnonKey}`,
+        };
+        const query = this.enemyQuery.trim();
+        const filter = query ? `&name=ilike.*${encodeURIComponent(query)}*` : '';
+        const url = `${this.supabaseUrl}/rest/v1/enemies?select=id,name,enemy_attributes(value,attributes(code))&order=name.asc${filter}`;
+        const response = await fetch(url, { headers });
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || `Request failed with ${response.status}`);
+        }
+        const data = await response.json();
+        this.enemyResults = Array.isArray(data) ? data : [];
+      } catch (error) {
+        this.enemyError = error?.message || 'Konnte Gegner nicht laden.';
+      } finally {
+        this.enemyLoading = false;
+      }
+    },
+    selectEnemy(enemy) {
+      const ini = Number(this.getAttributeValue(enemy, 'INI')) || 0;
+      const le = Number(this.getAttributeValue(enemy, 'LE')) || 0;
+      const rs = Number(this.getAttributeValue(enemy, 'RS')) || 0;
+      this.enemies.push({
+        id: `e-${enemy.id}-${Date.now()}`,
+        name: enemy.name,
+        ini,
+        hp: le,
+        rs,
+        isPlayer: false,
+        effects: [],
+      });
+      this.closeEnemyModal();
+    },
+    startEncounter() {
+      const combined = [...this.players, ...this.enemies];
+      const sorted = combined.sort((a, b) => b.ini - a.ini);
+      this.turnOrder = sorted;
+      this.currentIndex = 0;
+      this.turnCounter = 1;
+      this.encounterStarted = true;
+    },
+    nextTurn() {
+      if (!this.turnOrder.length) {
+        return;
+      }
+      if (this.currentIndex >= this.turnOrder.length - 1) {
+        this.currentIndex = 0;
+        this.turnCounter += 1;
+      } else {
+        this.currentIndex += 1;
+      }
+      this.tickEffectsFor(this.turnOrder[this.currentIndex]);
+    },
+    openDamageModal(target) {
+      this.damageTarget = target;
+      this.damageValue = 0;
+      this.damageIsTp = true;
+      this.showDamageModal = true;
+    },
+    closeDamageModal() {
+      this.showDamageModal = false;
+    },
+    openEffectModal(target) {
+      this.effectTarget = target;
+      this.effectForm = { name: '', rounds: 1 };
+      this.showEffectModal = true;
+    },
+    closeEffectModal() {
+      this.showEffectModal = false;
+    },
+    addEffect() {
+      if (!this.effectTarget || !this.effectForm.name) {
+        return;
+      }
+      const rounds = Number(this.effectForm.rounds) || 1;
+      if (!this.effectTarget.effects) {
+        this.effectTarget.effects = [];
+      }
+      this.effectTarget.effects.push({
+        id: `fx-${Date.now()}`,
+        name: this.effectForm.name.trim(),
+        rounds,
+      });
+      this.closeEffectModal();
+    },
+    tickEffectsFor(target) {
+      if (!target || !target.effects || !target.effects.length) {
+        return;
+      }
+      target.effects = target.effects
+        .map((effect) => ({
+          ...effect,
+          rounds: effect.rounds - 1,
+        }))
+        .filter((effect) => effect.rounds > 0);
+    },
+    applyDamage() {
+      if (!this.damageTarget) {
+        return;
+      }
+      let damage = Number(this.damageValue) || 0;
+      if (this.damageIsTp) {
+        damage = Math.max(damage - (this.damageTarget.rs || 0), 0);
+      }
+      this.damageTarget.hp -= damage;
+      if (this.damageTarget.hp < 0) {
+        this.removeCombatant(this.damageTarget);
+      }
+      this.closeDamageModal();
+    },
+    removeCombatant(target) {
+      this.enemies = this.enemies.filter((item) => item.id !== target.id);
+      this.turnOrder = this.turnOrder.filter((item) => item.id !== target.id);
+      if (!this.turnOrder.length) {
+        this.currentIndex = 0;
+        this.encounterStarted = false;
+        return;
+      }
+      if (this.currentIndex >= this.turnOrder.length) {
+        this.currentIndex = 0;
+      }
+    },
+    getAttributeValue(enemy, code) {
+      const rows = enemy?.enemy_attributes || [];
+      const match = rows.find((row) => row?.attributes?.code === code);
+      if (!match) {
+        return '-';
+      }
+      return match.value ?? '-';
+    },
+  },
+};
+</script>
+
+<style scoped>
+.simulation-view {
+  padding: 40px;
+  color: #e8dcc4;
+  background-color: #1a1a1a;
+  min-height: 100vh;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  border-bottom: 2px solid #c9a961;
+  padding-bottom: 16px;
+}
+
+h1 {
+  color: #c9a961;
+  margin: 0;
+  font-size: 2.4rem;
+}
+
+.turn-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+}
+
+.turn-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #8b7355;
+  color: #c9a961;
+  background: #2d2d2d;
+}
+
+.turn-current {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.9rem;
+}
+
+.action-bar {
+  display: flex;
+  gap: 12px;
+  margin: 20px 0 28px;
+  flex-wrap: wrap;
+}
+
+.boards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.board {
+  background: #141414;
+  border: 1px solid #2d2d2d;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.board__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.card-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #2d2d2d;
+  background: #1a1a1a;
+}
+
+.empty-state {
+  color: #8b7355;
+  font-size: 0.95rem;
+}
+
+.btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #2d2d2d;
+  color: #e8dcc4;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: #c9a961;
+  color: #1a1a1a;
+}
+
+.btn.small {
+  padding: 4px 8px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 12, 10, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 20;
+}
+
+.modal {
+  background: #fff;
+  color: #1a1a1a;
+  border-radius: 12px;
+  width: min(560px, 100%);
+  padding: 16px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+.modal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e6dcc6;
+  border-radius: 8px;
+  background: #faf7f0;
+  cursor: pointer;
+}
+
+.result-item:hover {
+  background: #f1e8d6;
+}
+
+.tag {
+  background: #c9a961;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+
+.damage-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-input,
+input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d8cbb3;
+  border-radius: 6px;
+}
+
+.close-btn {
+  font-size: 2rem;
+  color: #c9a961;
+  text-decoration: none;
+  cursor: pointer;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #c9a961;
+  border-radius: 50%;
+}
+
+.close-btn:hover {
+  background-color: rgba(201, 169, 97, 0.1);
+}
+
+.muted {
+  color: #8b7355;
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .turn-info {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+</style>
