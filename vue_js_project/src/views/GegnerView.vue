@@ -188,7 +188,7 @@
       <div v-else-if="!shownEnemies.length" class="muted">Keine Gegner passen zu den Filtern.</div>
 
       <div v-else class="enemy-grid">
-        <article v-for="enemy in shownEnemies" :key="enemy.id" class="enemy-card">
+        <article v-for="enemy in shownEnemies" :key="enemy.id" class="enemy-card" @click="openEnemyDetail(enemy)">
           <header class="enemy-card__head">
             <div>
               <strong class="enemy-card__name">{{ enemy.name }}</strong>
@@ -228,9 +228,18 @@
     <transition name="fade">
       <AddEnemyView
         v-if="showAddEnemy"
-        :supabase-url="supabaseUrl"
-        :supabase-anon-key="supabaseAnonKey"
+        :enemy="editingEnemy"
         @save-enemy="handleSaveEnemy"
+        @close="closeAddEnemy"
+      />
+    </transition>
+
+    <transition name="fade">
+      <EnemyDetailView
+        v-if="showEnemyDetail && selectedEnemy"
+        :enemy="selectedEnemy"
+        @close="closeEnemyDetail"
+        @edit="handleEditEnemy"
       />
     </transition>
   </div>
@@ -238,14 +247,18 @@
 
 <script>
 import AddEnemyView from './AddEnemyView.vue'
+import EnemyDetailView from './EnemyDetailView.vue'
 
 export default {
   name: 'GegnerView',
-  components: { AddEnemyView },
+  components: { AddEnemyView, EnemyDetailView },
   data() {
     return {
       showFilter: false,
       showAddEnemy: false,
+      showEnemyDetail: false,
+      selectedEnemy: null,
+      editingEnemy: null,
       supabaseUrl: 'https://dhomjjfeyoeynhunrnbs.supabase.co',
       supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRob21qamZleW9leW5odW5ybmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MjYwOTIsImV4cCI6MjA5NDIwMjA5Mn0.PaWu0BDYsWL2D4H4U6NoHHwwx2o9tAGt-1L4w2GdK64',
       enemies: [],
@@ -281,7 +294,8 @@ export default {
         { code: 'KAP', name: 'Karmaenergie' },
         { code: 'GS', name: 'Geschwindigkeit' },
         { code: 'INI', name: 'Initiative' },
-        { code: 'AW', name: 'Ausweichen' }
+        { code: 'AW', name: 'Ausweichen' },
+        { code: 'RS', name: 'Rüstungsschutz' }
       ],
       filters: {
         attributes: {
@@ -298,7 +312,8 @@ export default {
           KAP: null,
           GS: null,
           INI: null,
-          AW: null
+          AW: null,
+          RS: null
         },
         creatureType: [],
         challengeRating: [],
@@ -343,13 +358,24 @@ export default {
       this.showFilter = !this.showFilter;
     },
     openAddEnemy() {
+      this.editingEnemy = null;
       this.showAddEnemy = true;
     },
-    async handleSaveEnemy(enemy) {
+    closeAddEnemy() {
       this.showAddEnemy = false;
+      this.editingEnemy = null;
+    },
+    async handleSaveEnemy(enemy) {
+      this.closeAddEnemy();
 
       try {
-        await this.saveEnemyToSupabase(enemy);
+        if (enemy.id) {
+          // Update existing enemy
+          await this.updateEnemyToSupabase(enemy);
+        } else {
+          // Create new enemy
+          await this.saveEnemyToSupabase(enemy);
+        }
         await this.fetchEnemies();
         this.$emit('enemy-added', enemy);
       } catch (error) {
@@ -418,6 +444,70 @@ export default {
         body: JSON.stringify(attributeRows),
       });
     },
+    async updateEnemyToSupabase(enemy) {
+      const headers = {
+        apikey: this.supabaseAnonKey,
+        Authorization: `Bearer ${this.supabaseAnonKey}`,
+        'Content-Type': 'application/json',
+      };
+
+      // Update main enemy record
+      await this.fetchJson(
+        `${this.supabaseUrl}/rest/v1/enemies?id=eq.${enemy.id}`,
+        {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            name: enemy.name,
+            description: enemy.description,
+            creature_type: enemy.type,
+          }),
+        }
+      );
+
+      // Delete existing attributes and add new ones
+      await this.fetchJson(
+        `${this.supabaseUrl}/rest/v1/enemy_attributes?enemy_id=eq.${enemy.id}`,
+        {
+          method: 'DELETE',
+          headers,
+        }
+      );
+
+      // Add new attribute values
+      const attributeCodes = Object.keys(enemy.attributes || {});
+      if (!attributeCodes.length) {
+        return;
+      }
+
+      const codeList = attributeCodes.map((code) => `"${code}"`).join(',');
+      const attributes = await this.fetchJson(
+        `${this.supabaseUrl}/rest/v1/attributes?select=id,code&code=in.(${codeList})`,
+        { headers }
+      );
+
+      const idByCode = new Map(
+        (Array.isArray(attributes) ? attributes : []).map((attr) => [attr.code, attr.id])
+      );
+
+      const attributeRows = attributeCodes
+        .map((code) => ({
+          enemy_id: enemy.id,
+          attribute_id: idByCode.get(code),
+          value: enemy.attributes[code],
+        }))
+        .filter((row) => row.attribute_id !== undefined && row.value !== null && row.value !== '');
+
+      if (!attributeRows.length) {
+        return;
+      }
+
+      await this.fetchJson(`${this.supabaseUrl}/rest/v1/enemy_attributes`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(attributeRows),
+      });
+    },
     async fetchEnemies() {
       this.isLoading = true;
       this.loadError = '';
@@ -428,7 +518,7 @@ export default {
           Authorization: `Bearer ${this.supabaseAnonKey}`,
         };
         const data = await this.fetchJson(
-          `${this.supabaseUrl}/rest/v1/enemies?select=id,name,creature_type,challenge_rating,enemy_attributes(value,attributes(code))&order=id.desc`,
+          `${this.supabaseUrl}/rest/v1/enemies?select=*,enemy_attributes(value,attributes(code)),enemy_weapons(*)&order=id.desc`,
           { headers }
         );
         this.enemies = Array.isArray(data) ? data : [];
@@ -512,15 +602,28 @@ export default {
         KAP: null,
         GS: null,
         INI: null,
-        AW: null
+        AW: null,
+        RS: null
       };
       this.filters.creatureType = [];
       this.filters.challengeRating = [];
       this.filters.weaponType = [];
       this.filterEnemies();
+    },
+    openEnemyDetail(enemy) {
+      this.selectedEnemy = enemy;
+      this.showEnemyDetail = true;
+    },
+    closeEnemyDetail() {
+      this.showEnemyDetail = false;
+      this.selectedEnemy = null;
+    },
+    handleEditEnemy(enemy) {
+      this.editingEnemy = JSON.parse(JSON.stringify(enemy));
+      this.closeEnemyDetail();
+      this.showAddEnemy = true;
     }
-  }
-  ,
+  },
   watch: {
     filters: {
       deep: true,
@@ -948,6 +1051,13 @@ h1 {
   background: #141414;
   padding: 14px 16px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.enemy-card:hover {
+  border-color: #c9a961;
+  box-shadow: 0 10px 25px rgba(201, 169, 97, 0.3);
 }
 
 .enemy-card__head {

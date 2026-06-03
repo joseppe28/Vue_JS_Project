@@ -2,7 +2,7 @@
   <div class="modal-overlay" @click="closeModal">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
-        <h2>Neuen Gegner hinzufügen</h2>
+        <h2>{{ isEditMode ? 'Gegner bearbeiten' : 'Neuen Gegner hinzufügen' }}</h2>
         <button class="close-modal-btn" @click="closeModal">✕</button>
       </div>
 
@@ -111,7 +111,7 @@
             Abbrechen
           </button>
           <button type="submit" class="save-btn">
-            Gegner speichern
+            {{ isEditMode ? 'Gegner aktualisieren' : 'Gegner speichern' }}
           </button>
         </div>
       </form>
@@ -156,7 +156,13 @@
 <script>
 export default {
   name: 'AddEnemyView',
-  emits: ['save-enemy'],
+  props: {
+    enemy: {
+      type: Object,
+      default: null
+    }
+  },
+  emits: ['save-enemy', 'close'],
   data() {
     return {
       attributeLabels: {
@@ -189,6 +195,11 @@ export default {
       supabaseUrl: 'https://dhomjjfeyoeynhunrnbs.supabase.co',
       supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRob21qamZleW9leW5odW5ybmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MjYwOTIsImV4cCI6MjA5NDIwMjA5Mn0.PaWu0BDYsWL2D4H4U6NoHHwwx2o9tAGt-1L4w2GdK64',
     };
+  },
+  computed: {
+    isEditMode() {
+      return this.enemy && this.enemy.id;
+    }
   },
   methods: {
     emptyForm() {
@@ -233,6 +244,7 @@ export default {
       this.showWeaponSearch = false;
     },
     closeModal() {
+      this.resetForm();
       this.$emit('close');
     },
     queueWeaponSearch() {
@@ -316,10 +328,105 @@ export default {
       this.weaponError = '';
     },
     handleSubmit() {
-      this.$emit('save-enemy', JSON.parse(JSON.stringify(this.form)));
-      this.resetForm();
+      const payload = JSON.parse(JSON.stringify(this.form));
+      if (this.isEditMode) {
+        payload.id = this.enemy.id;
+      }
+      this.$emit('save-enemy', payload);
+      // Only reset form if creating new enemy, not editing
+      if (!this.isEditMode) {
+        this.resetForm();
+      }
     },
+    populateFormFromEnemy() {
+      if (!this.enemy) {
+        console.log('No enemy provided');
+        return;
+      }
+      
+      console.log('Populating form from enemy:', this.enemy);
+      
+      // Basic fields
+      this.form.name = this.enemy.name || '';
+      this.form.type = this.enemy.creature_type || '';
+      this.form.description = this.enemy.description || '';
+      
+      // Reset attributes to defaults first
+      Object.keys(this.form.attributes).forEach(code => {
+        this.form.attributes[code] = null;
+      });
+      
+      // Populate attributes from enemy_attributes array
+      if (this.enemy.enemy_attributes && Array.isArray(this.enemy.enemy_attributes)) {
+        this.enemy.enemy_attributes.forEach(attr => {
+          if (attr.attributes && attr.attributes.code) {
+            const code = attr.attributes.code;
+            if (code in this.form.attributes) {
+              this.form.attributes[code] = attr.value || 0;
+            }
+          }
+        });
+      }
+      
+      // Populate weapons
+      this.form.weapons = [];
+      if (this.enemy.enemy_weapons && Array.isArray(this.enemy.enemy_weapons)) {
+        this.form.weapons = this.enemy.enemy_weapons.map(ew => ({
+          weapon_id: ew.weapon_id,
+          name: ew.weapon_name || '',
+          type: ew.weapon_type || '',
+          details: ew.weapon_details || ''
+        }));
+      }
+      
+      // Populate abilities (parse JSON if needed)
+      this.form.advantages = [];
+      if (this.enemy.advantages) {
+        this.form.advantages = typeof this.enemy.advantages === 'string' 
+          ? (this.parseJSON(this.enemy.advantages) || [])
+          : (Array.isArray(this.enemy.advantages) ? [...this.enemy.advantages] : []);
+      }
+      
+      this.form.disadvantages = [];
+      if (this.enemy.disadvantages) {
+        this.form.disadvantages = typeof this.enemy.disadvantages === 'string' 
+          ? (this.parseJSON(this.enemy.disadvantages) || [])
+          : (Array.isArray(this.enemy.disadvantages) ? [...this.enemy.disadvantages] : []);
+      }
+      
+      this.form.specialAbilities = [];
+      if (this.enemy.special_abilities) {
+        this.form.specialAbilities = typeof this.enemy.special_abilities === 'string' 
+          ? (this.parseJSON(this.enemy.special_abilities) || [])
+          : (Array.isArray(this.enemy.special_abilities) ? [...this.enemy.special_abilities] : []);
+      }
+      
+      console.log('Form populated:', this.form);
+    },
+    parseJSON(jsonString) {
+      try {
+        return JSON.parse(jsonString);
+      } catch (e) {
+        console.warn('Failed to parse JSON:', jsonString, e);
+        return null;
+      }
+    }
   },
+  watch: {
+    enemy: {
+      handler(newVal) {
+        if (newVal && newVal.id) {
+          this.populateFormFromEnemy();
+        }
+      },
+      immediate: true
+    }
+  },
+  mounted() {
+    if (this.enemy && this.enemy.id) {
+      this.populateFormFromEnemy();
+    }
+  }
 };
 </script>
 
