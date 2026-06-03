@@ -117,7 +117,6 @@
               :key="enemy.id"
               class="result-item"
               type="button"
-              @click="selectEnemy(enemy)"
             >
               <div>
                 <strong>{{ enemy.name }}</strong>
@@ -133,7 +132,7 @@
                   | LE {{ getAttributeValue(enemy, 'LE') }}
                 </div>
               </div>
-              <span class="tag">Auswaehlen</span>
+              <button class="tag" @click="selectEnemy(enemy)">Auswaehlen</button>
             </button>
           </div>
         </div>

@@ -7,6 +7,8 @@
           type="text"
           class="search-input"
           placeholder="Gegner suchen..."
+          id = "searchInput"
+          @input ="filterEnemies"
         >
         <span class="search-icon">🔍</span>
       </div>
@@ -541,6 +543,10 @@ export default {
               return false;
             }
           }
+        }
+        let name = document.getElementById('searchInput').value;
+        if(name && !enemy.name.toLowerCase().includes(name.toLowerCase())) {
+          return false;
         }
 
         // Creature Type Filter
