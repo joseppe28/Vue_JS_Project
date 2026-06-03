@@ -4,19 +4,23 @@
       <h1>Simulation</h1>
       <div class="turn-info">
         <div class="turn-chip">Runde {{ turnCounter }}</div>
-        <div class="turn-current">
-          <span class="muted">Aktueller Zug</span>
-          <strong>{{ currentActorLabel }}</strong>
-        </div>
       </div>
       <router-link to="/" class="close-btn">✕</router-link>
     </header>
+
+    <section class="current-banner">
+      <span class="muted">Aktueller Zug</span>
+      <strong>{{ currentActorLabel }}</strong>
+    </section>
 
     <section class="action-bar">
       <button class="btn" @click="openPlayerModal">+ Spieler</button>
       <button class="btn" @click="openEnemyModal">+ Gegner</button>
       <button class="btn primary" @click="startEncounter" :disabled="!canStart">
         Kampf starten
+      </button>
+      <button class="btn" @click="openAttackModal" :disabled="!canAttack">
+        Angriff
       </button>
       <button class="btn" @click="nextTurn" :disabled="!encounterStarted || !turnOrder.length">
         Naechster Zug
@@ -64,7 +68,7 @@
                 </span>
               </div>
             </div>
-            <button class="btn small" @click="openDamageModal(enemy)">Schaden</button>
+            <button class="btn small" @click="openDamageModal(enemy)" :disabled="!encounterStarted">Schaden</button>
             <button class="btn small" @click="openEffectModal(enemy)">Effekt</button>
           </article>
         </div>
@@ -80,6 +84,7 @@
         <div class="modal__body">
           <input v-model="playerForm.name" placeholder="Spielername" />
           <input v-model.number="playerForm.ini" type="number" min="0" placeholder="INI" />
+          <input v-model.number="playerForm.hp" type="number" min="0" placeholder="LE" />
           <button class="btn primary" @click="addPlayer">Hinzufuegen</button>
         </div>
       </div>
@@ -111,7 +116,17 @@
             >
               <div>
                 <strong>{{ enemy.name }}</strong>
-                <div class="muted small">INI {{ getAttributeValue(enemy, 'INI') }} | LE {{ getAttributeValue(enemy, 'LE') }}</div>
+                <div class="muted small">
+                  INI {{ getAttributeValue(enemy, 'INI') }}
+                  +
+                  <input
+                    class="inline-input"
+                    type="number"
+                    min="0"
+                    v-model.number="enemyIniBonus[enemy.id]"
+                  />
+                  | LE {{ getAttributeValue(enemy, 'LE') }}
+                </div>
               </div>
               <span class="tag">Auswaehlen</span>
             </button>
@@ -150,6 +165,55 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showAttackModal" class="modal-backdrop" @click="closeAttackModal">
+      <div class="modal" @click.stop>
+        <header class="modal__head">
+          <h3>Angriff</h3>
+          <button type="button" class="btn small" @click="closeAttackModal">Schliessen</button>
+        </header>
+        <div class="modal__body">
+          <div class="muted">Angreifer: {{ currentActorLabel }}</div>
+          <div class="muted">Ziel auswaehlen</div>
+          <div class="result-list">
+            <button
+              v-for="target in attackTargets"
+              :key="target.id"
+              class="result-item"
+              type="button"
+              @click="selectAttackTarget(target)"
+            >
+              <div>
+                <strong>{{ target.name }}</strong>
+                <div class="muted small">INI {{ target.ini }}</div>
+              </div>
+              <span class="tag">Waehlen</span>
+            </button>
+          </div>
+
+          <div v-if="attackTarget" class="attack-panel">
+            <div class="attack-stats">
+              <div><strong>AW</strong> {{ attackStats.aw }}</div>
+              <div><strong>PA</strong> {{ attackStats.pa }}</div>
+              <div><strong>RS</strong> {{ attackStats.rs }}</div>
+              <div><strong>LE</strong> {{ attackStats.hp }}</div>
+            </div>
+            <div class="damage-row">
+              <label>TP beruecksichtigen (RS abziehen)</label>
+              <input type="checkbox" v-model="attackIsTp" />
+            </div>
+            <div class="attack-actions">
+              <button class="btn" @click="markDodged(true)">Ausgewichen</button>
+              <button class="btn primary" @click="markDodged(false)">Getroffen</button>
+            </div>
+            <input v-model.number="attackDamage" type="number" min="0" placeholder="Schaden" />
+            <button class="btn primary" @click="applyAttack" :disabled="attackDodged === null">
+              Anwenden
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -169,29 +233,62 @@ export default {
       showPlayerModal: false,
       showEnemyModal: false,
       showDamageModal: false,
-      playerForm: { name: '', ini: 10 },
+      playerForm: { name: '', ini: 10, hp: 25 },
       enemyQuery: '',
       enemyResults: [],
       enemyLoading: false,
       enemyError: '',
       enemySearchTimer: null,
+      enemyIniBonus: {},
       damageTarget: null,
       damageValue: 0,
       damageIsTp: true,
       showEffectModal: false,
       effectTarget: null,
       effectForm: { name: '', rounds: 1 },
+      showAttackModal: false,
+      attackTarget: null,
+      attackDamage: 0,
+      attackIsTp: true,
+      attackDodged: null,
     };
   },
   computed: {
     canStart() {
       return this.players.length + this.enemies.length > 0;
     },
+    canAttack() {
+      return this.encounterStarted && this.turnOrder.length > 1;
+    },
     currentActorLabel() {
       if (!this.encounterStarted || !this.turnOrder.length) {
         return '-';
       }
       return this.turnOrder[this.currentIndex]?.name || '-';
+    },
+    currentActor() {
+      if (!this.encounterStarted || !this.turnOrder.length) {
+        return null;
+      }
+      return this.turnOrder[this.currentIndex] || null;
+    },
+    attackTargets() {
+      if (!this.currentActor) {
+        return [];
+      }
+      return this.currentActor.isPlayer ? this.enemies : this.players;
+    },
+    attackStats() {
+      if (!this.attackTarget) {
+        return { aw: '-', pa: '-', rs: '-', hp: '-' };
+      }
+      const target = this.attackTarget;
+      return {
+        aw: this.getCombatStat(target, 'AW'),
+        pa: this.getCombatStat(target, 'PA'),
+        rs: this.getCombatStat(target, 'RS'),
+        hp: this.getCombatStat(target, 'LE'),
+      };
     },
   },
   methods: {
@@ -205,14 +302,17 @@ export default {
       if (!this.playerForm.name || this.playerForm.ini === null) {
         return;
       }
-      this.players.push({
+      const player = {
         id: `p-${Date.now()}`,
         name: this.playerForm.name.trim(),
         ini: Number(this.playerForm.ini) || 0,
+        hp: Number(this.playerForm.hp) || 0,
         isPlayer: true,
         effects: [],
-      });
-      this.playerForm = { name: '', ini: 10 };
+      };
+      this.players.push(player);
+      this.insertCombatant(player);
+      this.playerForm = { name: '', ini: 10, hp: 25 };
       this.closePlayerModal();
     },
     openEnemyModal() {
@@ -260,17 +360,20 @@ export default {
     },
     selectEnemy(enemy) {
       const ini = Number(this.getAttributeValue(enemy, 'INI')) || 0;
+      const bonus = Number(this.enemyIniBonus[enemy.id]) || 0;
       const le = Number(this.getAttributeValue(enemy, 'LE')) || 0;
       const rs = Number(this.getAttributeValue(enemy, 'RS')) || 0;
-      this.enemies.push({
+      const combatant = {
         id: `e-${enemy.id}-${Date.now()}`,
         name: enemy.name,
-        ini,
+        ini: ini + bonus,
         hp: le,
         rs,
         isPlayer: false,
         effects: [],
-      });
+      };
+      this.enemies.push(combatant);
+      this.insertCombatant(combatant);
       this.closeEnemyModal();
     },
     startEncounter() {
@@ -294,6 +397,9 @@ export default {
       this.tickEffectsFor(this.turnOrder[this.currentIndex]);
     },
     openDamageModal(target) {
+      if (!this.encounterStarted) {
+        return;
+      }
       this.damageTarget = target;
       this.damageValue = 0;
       this.damageIsTp = true;
@@ -340,18 +446,69 @@ export default {
       if (!this.damageTarget) {
         return;
       }
+      if (!this.encounterStarted) {
+        return;
+      }
       let damage = Number(this.damageValue) || 0;
       if (this.damageIsTp) {
         damage = Math.max(damage - (this.damageTarget.rs || 0), 0);
       }
-      this.damageTarget.hp -= damage;
-      if (this.damageTarget.hp < 0) {
-        this.removeCombatant(this.damageTarget);
+      if (typeof this.damageTarget.hp === 'number') {
+        this.damageTarget.hp -= damage;
+        if (this.damageTarget.hp < 0) {
+          this.removeCombatant(this.damageTarget);
+        }
       }
       this.closeDamageModal();
     },
+    openAttackModal() {
+      if (!this.canAttack) {
+        return;
+      }
+      this.attackTarget = null;
+      this.attackDamage = 0;
+      this.attackIsTp = true;
+      this.attackDodged = null;
+      this.showAttackModal = true;
+    },
+    closeAttackModal() {
+      this.showAttackModal = false;
+    },
+    selectAttackTarget(target) {
+      this.attackTarget = target;
+      this.attackDodged = null;
+      this.attackDamage = 0;
+    },
+    markDodged(value) {
+      this.attackDodged = value;
+      if (value) {
+        this.attackDamage = 0;
+      }
+    },
+    applyAttack() {
+      if (!this.attackTarget || this.attackDodged === null) {
+        return;
+      }
+      if (this.attackDodged) {
+        this.closeAttackModal();
+        return;
+      }
+      const target = this.attackTarget;
+      let damage = Number(this.attackDamage) || 0;
+      if (this.attackIsTp) {
+        damage = Math.max(damage - (target.rs || 0), 0);
+      }
+      if (typeof target.hp === 'number') {
+        target.hp -= damage;
+        if (target.hp < 0) {
+          this.removeCombatant(target);
+        }
+      }
+      this.closeAttackModal();
+    },
     removeCombatant(target) {
       this.enemies = this.enemies.filter((item) => item.id !== target.id);
+      this.players = this.players.filter((item) => item.id !== target.id);
       this.turnOrder = this.turnOrder.filter((item) => item.id !== target.id);
       if (!this.turnOrder.length) {
         this.currentIndex = 0;
@@ -370,6 +527,31 @@ export default {
       }
       return match.value ?? '-';
     },
+    getCombatStat(target, code) {
+      if (target.isPlayer) {
+        if (code === 'LE') {
+          return typeof target.hp === 'number' ? target.hp : '-';
+        }
+        return '-';
+      }
+      if (code === 'LE') {
+        return typeof target.hp === 'number' ? target.hp : '-';
+      }
+      if (code === 'RS') {
+        return typeof target.rs === 'number' ? target.rs : '-';
+      }
+      return this.getAttributeValue(target, code);
+    },
+    insertCombatant(combatant) {
+      if (!this.encounterStarted) {
+        return;
+      }
+      const currentId = this.turnOrder[this.currentIndex]?.id;
+      const nextOrder = [...this.turnOrder, combatant].sort((a, b) => b.ini - a.ini);
+      this.turnOrder = nextOrder;
+      const newIndex = nextOrder.findIndex((item) => item.id === currentId);
+      this.currentIndex = newIndex >= 0 ? newIndex : 0;
+    },
   },
 };
 </script>
@@ -383,7 +565,8 @@ export default {
 }
 
 .header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 20px;
   border-bottom: 2px solid #c9a961;
@@ -400,7 +583,16 @@ h1 {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-left: auto;
+  justify-self: center;
+}
+
+.current-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 16px 0 0;
+  font-size: 1.1rem;
 }
 
 .turn-chip {
@@ -457,6 +649,7 @@ h1 {
   border-radius: 12px;
   border: 1px solid #2d2d2d;
   background: #1a1a1a;
+  gap: 12px;
 }
 
 .empty-state {
@@ -554,6 +747,34 @@ h1 {
   gap: 12px;
 }
 
+.attack-panel {
+  border-top: 1px solid #e6dcc6;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.attack-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.attack-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.inline-input {
+  width: 70px;
+  padding: 2px 6px;
+  margin: 0 6px;
+  border-radius: 6px;
+  border: 1px solid #d8cbb3;
+}
+
 .search-input,
 input {
   width: 100%;
@@ -574,6 +795,7 @@ input {
   justify-content: center;
   border: 2px solid #c9a961;
   border-radius: 50%;
+  justify-self: end;
 }
 
 .close-btn:hover {
@@ -590,12 +812,13 @@ input {
 
 @media (max-width: 720px) {
   .header {
-    flex-wrap: wrap;
+    grid-template-columns: 1fr;
+    justify-items: center;
   }
 
   .turn-info {
     width: 100%;
-    justify-content: space-between;
+    justify-content: center;
   }
 }
 </style>
