@@ -15,7 +15,6 @@ Core:
 - DSA Gegner sehen und Daten erkennen 
 - Gegner zu Kampf hinzufügen 
 - Kampfdaten automatisch ermitteln (Schmerz, INI, Reihenfolge)
-- Sessions speichern (JSON)
 
 Extras: 
 - Fähigkeiten auch anzeigen 
