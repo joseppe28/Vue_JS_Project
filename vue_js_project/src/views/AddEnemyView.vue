@@ -1,106 +1,137 @@
 <template>
-  <div class="add-enemy-root">
-    <header class="page-head">
-      <h1>Neuen Gegner anlegen</h1>
-      <p class="lead">Fülle das Formular aus und klicke auf „Gegner speichern“ — die Komponente emittiert `save-enemy`.</p>
-    </header>
+  <div class="modal-overlay" @click="closeModal">
+    <div class="modal-content" @click.stop>
+      <div class="modal-header">
+        <h2>Neuen Gegner hinzufügen</h2>
+        <button class="close-modal-btn" @click="closeModal">✕</button>
+      </div>
 
-    <form class="enemy-form" @submit.prevent="handleSubmit">
-      <section class="card">
-        <label class="label">Name</label>
-        <input v-model="form.name" required placeholder="Name des Gegners" />
+      <form @submit.prevent="handleSubmit" class="enemy-form">
+        <!-- Grundinformationen -->
+        <div class="form-group">
+          <label>Gegnername:</label>
+          <input
+            v-model="form.name"
+            type="text"
+            placeholder="z.B. Goblin Krieger"
+            required
+          >
+        </div>
 
-        <label class="label">Typ</label>
-        <input v-model="form.type" placeholder="z. B. Goblin, Drache" />
+        <div class="form-group">
+          <label>Gegnertyp:</label>
+          <input
+            v-model="form.type"
+            type="text"
+            placeholder="z.B. Goblin, Drache"
+          >
+        </div>
 
-        <label class="label">Beschreibung</label>
-        <textarea v-model="form.description" rows="4" placeholder="Kurze Beschreibung"></textarea>
-      </section>
+        <div class="form-group">
+          <label>Beschreibung:</label>
+          <textarea
+            v-model="form.description"
+            placeholder="Kurze Beschreibung"
+            rows="3"
+          ></textarea>
+        </div>
 
-      <section class="card">
-        <h2>Eigenschaften</h2>
+        <!-- Eigenschaften -->
+        <div class="section-title">Eigenschaften</div>
         <div class="attr-grid">
           <div v-for="(label, code) in attributeLabels" :key="code" class="attr-item">
-            <label class="small">{{ code }}</label>
-            <input v-model.number="form.attributes[code]" type="number" min="0" max="30" />
-            <small class="hint">{{ label }}</small>
+            <label class="attr-label">{{ code }}</label>
+            <input v-model.number="form.attributes[code]" type="number" min="0" max="100000" class="attr-input" />
+            <small class="attr-hint">{{ label }}</small>
           </div>
         </div>
-      </section>
 
-      <section class="card">
-        <h2>Waffen</h2>
-        <div v-for="(w, idx) in form.weapons" :key="idx" class="weapon-row">
-          <input v-model="w.name" placeholder="Name" />
-          <input v-model="w.type" placeholder="Typ" />
-          <input v-model="w.details" placeholder="Kurz (z.B. 1W6+2 / AT+1)" />
-          <button type="button" class="btn small" @click="removeWeapon(idx)">Entfernen</button>
+        <!-- Waffen -->
+        <div class="section-title">Waffen</div>
+        <div v-if="form.weapons.length" class="weapons-list">
+          <div v-for="(w, idx) in form.weapons" :key="idx" class="weapon-item">
+            <input v-model="w.name" placeholder="Name" class="weapon-input" />
+            <input v-model="w.type" placeholder="Typ" class="weapon-input" />
+            <input v-model="w.details" placeholder="Details (z.B. 1W6+2 / AT+1)" class="weapon-input" />
+            <button type="button" class="btn-remove" @click="removeWeapon(idx)">✕</button>
+          </div>
         </div>
         <div class="weapon-actions">
-          <button type="button" class="btn" @click="addWeapon">Waffe manuell</button>
-          <button type="button" class="btn" @click="openWeaponSearch">Waffe aus DB</button>
+          <button type="button" class="btn-action" @click="addWeapon">+ Waffe manuell</button>
+          <button type="button" class="btn-action" @click="openWeaponSearch">+ Waffe aus DB</button>
         </div>
-      </section>
 
-      <section class="card">
-        <h2>Vorteile / Nachteile / Sonderfertigkeiten</h2>
-
-        <div class="list-block">
-          <label class="small">Vorteil</label>
+        <!-- Vorteile / Nachteile / Sonderfertigkeiten -->
+        <div class="section-title">Vorteile & Fähigkeiten</div>
+        
+        <div class="form-group">
+          <label>Vorteil hinzufügen:</label>
           <div class="inline-input">
-            <input v-model="tempAdv" placeholder="z. B. Gute Augen" />
-            <button type="button" class="btn" @click="pushList('advantages', tempAdv); tempAdv=''">+</button>
+            <input v-model="tempAdv" placeholder="z.B. Gute Augen" class="flex-input" />
+            <button type="button" class="btn-add" @click="pushList('advantages', tempAdv); tempAdv=''">+</button>
           </div>
           <div class="chip-list">
-            <span v-for="(a,i) in form.advantages" :key="i" class="chip">{{ a }} <button type="button" @click="removeFromList('advantages', i)">×</button></span>
+            <span v-for="(a,i) in form.advantages" :key="i" class="chip">
+              {{ a }}
+              <button type="button" @click="removeFromList('advantages', i)" class="chip-remove">×</button>
+            </span>
           </div>
         </div>
 
-        <div class="list-block">
-          <label class="small">Nachteil</label>
+        <div class="form-group">
+          <label>Nachteil hinzufügen:</label>
           <div class="inline-input">
-            <input v-model="tempDis" placeholder="z. B. Leicht reizbar" />
-            <button type="button" class="btn" @click="pushList('disadvantages', tempDis); tempDis=''">+</button>
+            <input v-model="tempDis" placeholder="z.B. Leicht reizbar" class="flex-input" />
+            <button type="button" class="btn-add" @click="pushList('disadvantages', tempDis); tempDis=''">+</button>
           </div>
           <div class="chip-list">
-            <span v-for="(d,i) in form.disadvantages" :key="i" class="chip chip--neg">{{ d }} <button type="button" @click="removeFromList('disadvantages', i)">×</button></span>
+            <span v-for="(d,i) in form.disadvantages" :key="i" class="chip chip--neg">
+              {{ d }}
+              <button type="button" @click="removeFromList('disadvantages', i)" class="chip-remove">×</button>
+            </span>
           </div>
         </div>
 
-        <div class="list-block">
-          <label class="small">Sonderfertigkeit</label>
+        <div class="form-group">
+          <label>Sonderfertigkeit hinzufügen:</label>
           <div class="inline-input">
-            <input v-model="tempSF" placeholder="z. B. Ausweichen" />
-            <button type="button" class="btn" @click="pushList('specialAbilities', tempSF); tempSF=''">+</button>
+            <input v-model="tempSF" placeholder="z.B. Ausweichen" class="flex-input" />
+            <button type="button" class="btn-add" @click="pushList('specialAbilities', tempSF); tempSF=''">+</button>
           </div>
           <div class="chip-list">
-            <span v-for="(s,i) in form.specialAbilities" :key="i" class="chip">{{ s }} <button type="button" @click="removeFromList('specialAbilities', i)">×</button></span>
+            <span v-for="(s,i) in form.specialAbilities" :key="i" class="chip">
+              {{ s }}
+              <button type="button" @click="removeFromList('specialAbilities', i)" class="chip-remove">×</button>
+            </span>
           </div>
         </div>
-      </section>
 
-      <div class="actions">
-        <button type="submit" class="btn primary">Gegner speichern</button>
-        <button type="button" class="btn" @click="resetForm">Zurücksetzen</button>
-      </div>
-    </form>
+        <div class="form-actions">
+          <button type="button" @click="closeModal" class="cancel-btn">
+            Abbrechen
+          </button>
+          <button type="submit" class="save-btn">
+            Gegner speichern
+          </button>
+        </div>
+      </form>
 
-    <div v-if="showWeaponSearch" class="modal-backdrop" @click="closeWeaponSearch">
-      <div class="modal" @click.stop>
-        <header class="modal__head">
-          <h3>Waffe suchen</h3>
-          <button type="button" class="btn small" @click="closeWeaponSearch">Schließen</button>
-        </header>
-        <div class="modal__body">
+      <!-- Waffen-Such-Modal -->
+      <div v-if="showWeaponSearch" class="weapon-search-overlay" @click="closeWeaponSearch">
+        <div class="weapon-search-modal" @click.stop>
+          <div class="search-header">
+            <h3>Waffe suchen</h3>
+            <button type="button" class="close-search-btn" @click="closeWeaponSearch">✕</button>
+          </div>
           <input
             v-model="weaponQuery"
             class="search-input"
             placeholder="Name der Waffe..."
             @input="queueWeaponSearch"
           />
-          <div v-if="weaponLoading" class="muted">Suche...</div>
-          <div v-else-if="weaponError" class="muted">{{ weaponError }}</div>
-          <div v-else-if="!weaponResults.length" class="muted">Keine Treffer.</div>
+          <div v-if="weaponLoading" class="search-status">Suche...</div>
+          <div v-else-if="weaponError" class="search-status error">{{ weaponError }}</div>
+          <div v-else-if="!weaponResults.length" class="search-status">Keine Treffer.</div>
           <div v-else class="weapon-results">
             <button
               v-for="weapon in weaponResults"
@@ -111,9 +142,9 @@
             >
               <div>
                 <strong>{{ weapon.name }}</strong>
-                <div class="muted small">{{ weapon.weapon_type || 'Unbekannt' }}</div>
+                <div class="weapon-type">{{ weapon.weapon_type || 'Unbekannt' }}</div>
               </div>
-              <span class="tag">Auswählen</span>
+              <span class="tag">+</span>
             </button>
           </div>
         </div>
@@ -125,16 +156,6 @@
 <script>
 export default {
   name: 'AddEnemyView',
-  props: {
-    supabaseUrl: {
-      type: String,
-      required: true,
-    },
-    supabaseAnonKey: {
-      type: String,
-      required: true,
-    },
-  },
   emits: ['save-enemy'],
   data() {
     return {
@@ -153,6 +174,7 @@ export default {
         GS: 'Geschwindigkeit',
         INI: 'Initiative',
         AW: 'Ausweichen',
+        RS: 'Rüstungsschutz',
       },
       form: this.emptyForm(),
       tempAdv: '',
@@ -164,6 +186,8 @@ export default {
       weaponLoading: false,
       weaponError: '',
       weaponSearchTimer: null,
+      supabaseUrl: 'https://dhomjjfeyoeynhunrnbs.supabase.co',
+      supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRob21qamZleW9leW5odW5ybmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MjYwOTIsImV4cCI6MjA5NDIwMjA5Mn0.PaWu0BDYsWL2D4H4U6NoHHwwx2o9tAGt-1L4w2GdK64',
     };
   },
   methods: {
@@ -187,6 +211,7 @@ export default {
           GS: 8,
           INI: 10,
           AW: 6,
+          RS: 0,
         },
         weapons: [],
         advantages: [],
@@ -206,6 +231,9 @@ export default {
     },
     closeWeaponSearch() {
       this.showWeaponSearch = false;
+    },
+    closeModal() {
+      this.$emit('close');
     },
     queueWeaponSearch() {
       if (this.weaponSearchTimer) {
@@ -288,7 +316,6 @@ export default {
       this.weaponError = '';
     },
     handleSubmit() {
-      // emit a copy so parent can safely mutate
       this.$emit('save-enemy', JSON.parse(JSON.stringify(this.form)));
       this.resetForm();
     },
@@ -297,35 +324,458 @@ export default {
 </script>
 
 <style scoped>
-.add-enemy-root { max-width: 980px; margin: 32px auto; padding: 0 16px; }
-.page-head h1 { margin: 0 0 6px; font-size: 1.8rem; }
-.page-head .lead { margin: 0 0 18px; color: #6b5b43; }
-.enemy-form .card { background: #fff; padding: 14px; border-radius: 8px; margin-bottom: 14px; border: 1px solid #e6dcc6; }
-.label { display:block; margin:6px 0 4px; font-weight:600 }
-input, textarea { width:100%; padding:8px 10px; border:1px solid #d8cbb3; border-radius:6px; }
-.attr-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
-.attr-item { display:flex; flex-direction:column; }
-.attr-item input { text-align:center }
-.weapon-row { display:flex; gap:8px; margin-bottom:8px }
-.weapon-row input { flex:1 }
-.weapon-actions { display:flex; gap:8px; margin-top:8px }
-.btn { padding:6px 10px; border:none; background:#eee; border-radius:6px; cursor:pointer }
-.btn.small { padding:4px 8px }
-.btn.primary { background:#c9a961; color:#fff }
-.modal-backdrop { position:fixed; inset:0; background:rgba(14,12,10,0.7); display:flex; align-items:center; justify-content:center; padding:16px; z-index:20 }
-.modal { background:#fff; border-radius:12px; width:min(640px, 100%); padding:16px; box-shadow:0 18px 40px rgba(0,0,0,0.35) }
-.modal__head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px }
-.modal__body { display:flex; flex-direction:column; gap:10px }
-.weapon-results { display:flex; flex-direction:column; gap:8px; max-height:320px; overflow:auto }
-.weapon-result { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 12px; border:1px solid #e6dcc6; border-radius:8px; background:#faf7f0; cursor:pointer }
-.weapon-result:hover { background:#f1e8d6 }
-.tag { background:#c9a961; color:#fff; padding:2px 8px; border-radius:999px; font-size:0.75rem }
-.muted { color:#6b5b43 }
-.small { font-size:0.85rem }
-.inline-input { display:flex; gap:8px }
-.chip-list { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px }
-.chip { background:#f3efe6; padding:6px 8px; border-radius:999px }
-.chip--neg { background:#f8e6e4 }
-.actions { display:flex; gap:12px; justify-content:flex-start; margin-top:12px }
-@media (max-width:720px){ .attr-grid{grid-template-columns:repeat(2,1fr)} .weapon-row{flex-direction:column} }
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-content {
+  background-color: #2d2d2d;
+  border: 2px solid #c9a961;
+  border-radius: 8px;
+  padding: 30px;
+  max-width: 700px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(201, 169, 97, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #c9a961;
+}
+
+.modal-header h2 {
+  color: #c9a961;
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.close-modal-btn {
+  background: none;
+  border: none;
+  color: #c9a961;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.close-modal-btn:hover {
+  color: #e8dcc4;
+  transform: scale(1.2);
+}
+
+.enemy-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  color: #c9a961;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.form-group input,
+.form-group textarea {
+  padding: 10px;
+  background-color: #1a1a1a;
+  border: 2px solid #8b7355;
+  border-radius: 4px;
+  color: #e8dcc4;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #c9a961;
+  box-shadow: 0 0 8px rgba(201, 169, 97, 0.2);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: #8b7355;
+}
+
+.form-group textarea {
+  resize: vertical;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.section-title {
+  color: #c9a961;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-top: 15px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #8b7355;
+}
+
+.attr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.attr-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.attr-label {
+  color: #c9a961;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.attr-input {
+  text-align: center;
+  padding: 6px 4px;
+  background-color: #1a1a1a;
+  border: 1px solid #8b7355;
+  border-radius: 3px;
+  color: #e8dcc4;
+  font-size: 0.9rem;
+}
+
+.attr-input:focus {
+  outline: none;
+  border-color: #c9a961;
+}
+
+.attr-hint {
+  color: #8b7355;
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.weapons-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.weapon-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr auto;
+  gap: 8px;
+  padding: 8px;
+  background-color: rgba(139, 115, 85, 0.1);
+  border: 1px solid #8b7355;
+  border-radius: 4px;
+}
+
+.weapon-input {
+  padding: 6px 8px;
+  background-color: #1a1a1a;
+  border: 1px solid #8b7355;
+  border-radius: 3px;
+  color: #e8dcc4;
+  font-size: 0.85rem;
+}
+
+.weapon-input:focus {
+  outline: none;
+  border-color: #c9a961;
+}
+
+.btn-remove {
+  background: none;
+  border: none;
+  color: #c9a961;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-remove:hover {
+  color: #e8dcc4;
+  transform: scale(1.2);
+}
+
+.weapon-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.btn-action {
+  flex: 1;
+  padding: 8px 12px;
+  background-color: #8b7355;
+  border: 1px solid #c9a961;
+  border-radius: 4px;
+  color: #e8dcc4;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-action:hover {
+  background-color: #a0825c;
+  box-shadow: 0 0 8px rgba(201, 169, 97, 0.2);
+}
+
+.inline-input {
+  display: flex;
+  gap: 8px;
+}
+
+.flex-input {
+  flex: 1;
+  padding: 8px 10px;
+  background-color: #1a1a1a;
+  border: 1px solid #8b7355;
+  border-radius: 4px;
+  color: #e8dcc4;
+  font-size: 0.9rem;
+}
+
+.flex-input:focus {
+  outline: none;
+  border-color: #c9a961;
+}
+
+.btn-add {
+  padding: 8px 12px;
+  background-color: #8b7355;
+  border: 1px solid #c9a961;
+  border-radius: 4px;
+  color: #e8dcc4;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-add:hover {
+  background-color: #a0825c;
+  box-shadow: 0 0 8px rgba(201, 169, 97, 0.2);
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chip {
+  background-color: rgba(139, 115, 85, 0.2);
+  border: 1px solid #8b7355;
+  color: #e8dcc4;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip--neg {
+  background-color: rgba(255, 100, 100, 0.1);
+  border-color: #c9705a;
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-weight: bold;
+  padding: 0;
+  font-size: 1rem;
+}
+
+.chip-remove:hover {
+  color: #c9a961;
+}
+
+.form-actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.cancel-btn,
+.save-btn {
+  flex: 1;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.cancel-btn {
+  background-color: #8b7355;
+  color: #e8dcc4;
+}
+
+.cancel-btn:hover {
+  background-color: #6b5344;
+}
+
+.save-btn {
+  background-color: #c9a961;
+  color: #1a1a1a;
+}
+
+.save-btn:hover {
+  background-color: #d4b97a;
+}
+
+/* Waffen-Such-Modal Styling */
+.weapon-search-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 101;
+}
+
+.weapon-search-modal {
+  background-color: #2d2d2d;
+  border: 2px solid #c9a961;
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.search-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #8b7355;
+}
+
+.search-header h3 {
+  color: #c9a961;
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.close-search-btn {
+  background: none;
+  border: none;
+  color: #c9a961;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.close-search-btn:hover {
+  color: #e8dcc4;
+}
+
+.search-input {
+  padding: 10px;
+  background-color: #1a1a1a;
+  border: 1px solid #8b7355;
+  border-radius: 4px;
+  color: #e8dcc4;
+  margin-bottom: 10px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #c9a961;
+}
+
+.search-status {
+  color: #8b7355;
+  padding: 15px;
+  text-align: center;
+}
+
+.search-status.error {
+  color: #c9705a;
+}
+
+.weapon-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.weapon-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #8b7355;
+  border-radius: 4px;
+  background-color: rgba(139, 115, 85, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.weapon-result:hover {
+  background-color: rgba(139, 115, 85, 0.2);
+  border-color: #c9a961;
+}
+
+.weapon-result strong {
+  color: #c9a961;
+  display: block;
+}
+
+.weapon-type {
+  color: #8b7355;
+  font-size: 0.85rem;
+  margin-top: 2px;
+}
+
+.tag {
+  background-color: #c9a961;
+  color: #1a1a1a;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
 </style>
