@@ -573,16 +573,17 @@ export default {
     },
     async fetchJson(url, options = {}) {
       const response = await fetch(url, options);
+      const text = await response.text();
+
       if (!response.ok) {
-        const message = await response.text();
-        throw new Error(message || `Request failed with ${response.status}`);
+        throw new Error(text || `Request failed with ${response.status}`);
       }
 
-      if (response.status === 204) {
+      if (!text) {
         return null;
       }
 
-      return response.json();
+      return JSON.parse(text);
     },
     getAttributeValue(enemy, code) {
       const rows = enemy?.enemy_attributes || [];

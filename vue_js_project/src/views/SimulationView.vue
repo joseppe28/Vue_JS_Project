@@ -112,11 +112,10 @@
           <div v-else-if="enemyError" class="muted">{{ enemyError }}</div>
           <div v-else-if="!enemyResults.length" class="muted">Keine Treffer.</div>
           <div v-else class="result-list">
-            <button
+            <div
               v-for="enemy in enemyResults"
               :key="enemy.id"
               class="result-item"
-              type="button"
             >
               <div>
                 <strong>{{ enemy.name }}</strong>
@@ -132,8 +131,8 @@
                   | LE {{ getAttributeValue(enemy, 'LE') }}
                 </div>
               </div>
-              <button class="tag" @click="selectEnemy(enemy)">Auswaehlen</button>
-            </button>
+              <button type="button" class="tag" @click="selectEnemy(enemy)">Auswaehlen</button>
+            </div>
           </div>
         </div>
       </div>
@@ -697,12 +696,13 @@ h1 {
 }
 
 .modal {
-  background: #fff;
-  color: #1a1a1a;
-  border-radius: 12px;
+  background: #141414;
+  color: #e8dcc4;
+  border: 1px solid #c9a961;
+  border-radius: 8px;
   width: min(560px, 100%);
   padding: 16px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 20px rgba(201, 169, 97, 0.15);
 }
 
 .modal__head {
@@ -710,6 +710,13 @@ h1 {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #8b7355;
+}
+
+.modal__head h3 {
+  color: #c9a961;
+  margin: 0;
 }
 
 .modal__body {
@@ -732,20 +739,22 @@ h1 {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid #e6dcc6;
+  border: 1px solid #2d2d2d;
   border-radius: 8px;
-  background: #faf7f0;
-  cursor: pointer;
+  background: #1a1a1a;
+  color: #e8dcc4;
 }
 
 .result-item:hover {
-  background: #f1e8d6;
+  border-color: #c9a961;
+  background: rgba(201, 169, 97, 0.08);
 }
 
 .tag {
   background: #c9a961;
-  color: #fff;
+  color: #1a1a1a;
   padding: 2px 8px;
+  border: 0;
   border-radius: 999px;
   font-size: 0.75rem;
 }
@@ -758,7 +767,7 @@ h1 {
 }
 
 .attack-panel {
-  border-top: 1px solid #e6dcc6;
+  border-top: 1px solid #8b7355;
   padding-top: 12px;
   display: flex;
   flex-direction: column;
@@ -782,15 +791,31 @@ h1 {
   padding: 2px 6px;
   margin: 0 6px;
   border-radius: 6px;
-  border: 1px solid #d8cbb3;
+  border: 1px solid #8b7355;
+  background: #2d2d2d;
+  color: #e8dcc4;
 }
 
 .search-input,
 input {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid #d8cbb3;
+  border: 1px solid #8b7355;
   border-radius: 6px;
+  background: #2d2d2d;
+  color: #e8dcc4;
+}
+
+.search-input::placeholder,
+input::placeholder {
+  color: #8b7355;
+}
+
+.search-input:focus,
+input:focus {
+  outline: none;
+  border-color: #c9a961;
+  box-shadow: 0 0 8px rgba(201, 169, 97, 0.2);
 }
 
 .close-btn {
